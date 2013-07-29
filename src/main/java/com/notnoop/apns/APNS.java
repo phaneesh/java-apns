@@ -47,6 +47,13 @@ public final class APNS {
     public static PayloadBuilder newPayload() {
         return new PayloadBuilder();
     }
+    
+    /**
+     * Returns a new Payload builder using body
+     */
+    public static PayloadBuilder newPayload(boolean useBody) {
+        return new PayloadBuilder(useBody);
+    }
 
     /**
      * Returns a new APNS Service for sending iPhone notifications
