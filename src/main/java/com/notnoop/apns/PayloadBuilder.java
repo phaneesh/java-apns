@@ -43,7 +43,8 @@ import com.notnoop.apns.internal.Utilities;
  */
 public final class PayloadBuilder {
     private static final ObjectMapper mapper = new ObjectMapper();
-
+    
+    private boolean useBody;
     private final Map<String, Object> root;
     private final Map<String, Object> aps;
     private final Map<String, Object> customAlert;
@@ -52,9 +53,18 @@ public final class PayloadBuilder {
      * Constructs a new instance of {@code PayloadBuilder}
      */
     PayloadBuilder() {
-        root = new HashMap<String, Object>();
+        this(false);
+    }
+    
+    /**
+     * Constructs a new instance of {@code PayloadBuilder} with body param 
+     */
+    PayloadBuilder(boolean useBody)
+    {
+    	root = new HashMap<String, Object>();
         aps = new HashMap<String, Object>();
         customAlert = new HashMap<String, Object>();
+        this.useBody = useBody;
     }
 
     /**
@@ -379,7 +389,7 @@ public final class PayloadBuilder {
                 aps.remove("alert");
                 break;
             case 1:
-                if (customAlert.containsKey("body")) {
+                if (customAlert.containsKey("body") && !useBody) {
                     aps.put("alert", customAlert.get("body"));
                     break;
                 }
@@ -407,10 +417,11 @@ public final class PayloadBuilder {
 
     private PayloadBuilder(final Map<String, Object> root,
             final Map<String, Object> aps,
-            final Map<String, Object> customAlert) {
+            final Map<String, Object> customAlert, boolean useBody) {
         this.root = new HashMap<String, Object>(root);
         this.aps = new HashMap<String, Object>(aps);
         this.customAlert = new HashMap<String, Object>(customAlert);
+        this.useBody = useBody;
     }
 
     /**
@@ -419,7 +430,7 @@ public final class PayloadBuilder {
      * @return a copy of this builder
      */
     public PayloadBuilder copy() {
-        return new PayloadBuilder(root, aps, customAlert);
+        return new PayloadBuilder(root, aps, customAlert,useBody);
     }
 
     /**
