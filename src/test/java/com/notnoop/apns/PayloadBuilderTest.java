@@ -35,7 +35,7 @@ public class PayloadBuilderTest {
     
     @Test
     public void testOneAps_usingBody() {
-        final PayloadBuilder builder = new PayloadBuilder(true);
+        final PayloadBuilder builder = new PayloadBuilder().withAlertBody(true);
         builder.alertBody("test");
 
         final String expected = "{\"aps\":{\"alert\":{\"body\":\"test\"}}}";
@@ -56,7 +56,7 @@ public class PayloadBuilderTest {
     
     @Test
     public void testTwoAps_usingBody() {
-        final PayloadBuilder builder = new PayloadBuilder(true);
+        final PayloadBuilder builder = new PayloadBuilder().withAlertBody(true);
         builder.alertBody("test");
         builder.badge(9);
 

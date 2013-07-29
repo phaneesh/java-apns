@@ -53,20 +53,22 @@ public final class PayloadBuilder {
      * Constructs a new instance of {@code PayloadBuilder}
      */
     PayloadBuilder() {
-        this(false);
-    }
-    
-    /**
-     * Constructs a new instance of {@code PayloadBuilder} with body param 
-     */
-    PayloadBuilder(boolean useBody)
-    {
     	root = new HashMap<String, Object>();
         aps = new HashMap<String, Object>();
         customAlert = new HashMap<String, Object>();
-        this.useBody = useBody;
+        useBody = false;
     }
-
+    
+    /**
+     * 
+     * Sets the configuration to use alert body
+     * @param use body
+     */
+    public PayloadBuilder withAlertBody(boolean useBody){
+    	this.useBody = useBody;
+    	return this;
+    }
+    
     /**
      * Sets the alert body text, the text the appears to the user,
      * to the passed value
@@ -392,11 +394,12 @@ public final class PayloadBuilder {
                 if (customAlert.containsKey("body") && !useBody) {
                     aps.put("alert", customAlert.get("body"));
                     break;
-                }
+                }                 
                 // else follow through
                 //$FALL-THROUGH$
             default:
-                aps.put("alert", customAlert);
+            	aps.put("alert", customAlert);
+            	
         }
     }
 
