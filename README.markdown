@@ -1,4 +1,4 @@
-Build status: [![Build Status](https://travis-ci.org/notnoop/java-apns.png)](https://travis-ci.org/notnoop/java-apns)
+Build status: [![Build Status](https://travis-ci.org/flozano/java-apns.png)](https://travis-ci.org/flozano/java-apns)
 
 Introduction
 ------------
