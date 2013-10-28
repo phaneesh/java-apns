@@ -9,14 +9,17 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.channel.socket.oio.OioSocketChannel;
 import io.netty.handler.ssl.SslHandler;
 
 import java.io.IOException;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 
 import com.notnoop.apns.ReconnectPolicy;
 
+// TODO test
 public class NettyChannelProviderImpl extends AbstractChannelProvider {
 
     private final ReconnectPolicy reconnectPolicy;
@@ -37,9 +40,10 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         this.sslContext = sslContext;
         bootstrap = new Bootstrap();
         bootstrap.group(eventLoopGroup);
-        bootstrap.channel(NioSocketChannel.class);
+        bootstrap.channel(OioSocketChannel.class);
+        // bootstrap.channel(NioSocketChannel.class);
         bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
-        bootstrap.option(ChannelOption.AIO_READ_TIMEOUT, (long) readTimeout);
+        // bootstrap.option(ChannelOption.AIO_READ_TIMEOUT, (long) readTimeout);
     }
 
     @Override
@@ -84,8 +88,9 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         bootstrap.handler(new ChannelInitializer<SocketChannel>() {
             @Override
             protected void initChannel(SocketChannel ch) throws Exception {
-                ch.pipeline().addFirst("ssl",
-                        new SslHandler(sslContext.createSSLEngine()));
+                SSLEngine engine = sslContext.createSSLEngine();
+                engine.setUseClientMode(true);
+                ch.pipeline().addFirst("ssl", new SslHandler(engine));
                 for (ChannelHandler h : NettyChannelProviderImpl.this
                         .getChannelHandlersProvider().getChannelHandlers()) {
                     ch.pipeline().addLast(h);

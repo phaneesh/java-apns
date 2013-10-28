@@ -26,7 +26,7 @@ import com.notnoop.exceptions.NetworkIOException;
 
 public class NettyApnsConnectionImpl implements ApnsConnection {
     private static final Logger LOGGER = LoggerFactory
-            .getLogger(ApnsConnectionImpl.class);
+            .getLogger(NettyApnsConnectionImpl.class);
     private final Queue<ApnsNotification> cachedNotifications,
             notificationsBuffer;
     private final ApnsDelegate delegate;
@@ -34,15 +34,13 @@ public class NettyApnsConnectionImpl implements ApnsConnection {
 
     private int cacheLength;
 
-    // private final int readTimeout;
-
     public NettyApnsConnectionImpl(ChannelProvider channelProvider,
-            ApnsDelegate delegate) {
-        cachedNotifications = new ConcurrentLinkedQueue<ApnsNotification>();
-        notificationsBuffer = new ConcurrentLinkedQueue<ApnsNotification>();
-        // this.readTimeout = readTimeout;
+            ApnsDelegate delegate, int cacheLength) {
+        this.cachedNotifications = new ConcurrentLinkedQueue<ApnsNotification>();
+        this.notificationsBuffer = new ConcurrentLinkedQueue<ApnsNotification>();
         this.delegate = delegate;
         this.channelProvider = channelProvider;
+        this.cacheLength = cacheLength;
     }
 
     // This was done in the constructor, but it was impossible to spy the
@@ -99,6 +97,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection {
                 drainBuffer();
                 break;
             } catch (Exception e) {
+                delegate.messageSendFailed(m, e);
                 Utilities.wrapAndThrowAsRuntimeException(e);
             }
         }
@@ -147,6 +146,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection {
         } finally {
             try {
                 close();
+                drainBuffer();
+
             } catch (IOException e) {
                 LOGGER.error("I/O Exception while closing", e);
             }

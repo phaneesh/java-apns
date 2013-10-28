@@ -6,6 +6,13 @@ import io.netty.channel.ChannelHandler;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * This class separates the channel handling/reconnecting from the actual
+ * app-level logic of APNS.
+ * 
+ * @author flozano
+ * 
+ */
 public interface ChannelProvider {
 
     Channel getChannel();
