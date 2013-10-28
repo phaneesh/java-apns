@@ -5,15 +5,17 @@ import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 
-import com.notnoop.apns.ApnsNotification;
+import com.notnoop.apns.DeliveryResult;
 
 @Sharable
-public class ApnsNotificationEncoder extends
-        MessageToByteEncoder<ApnsNotification> {
+public class ApnsResultEncoder extends MessageToByteEncoder<DeliveryResult> {
 
     @Override
-    protected void encode(ChannelHandlerContext ctx, ApnsNotification msg,
+    public void encode(ChannelHandlerContext ctx, DeliveryResult msg,
             ByteBuf out) throws Exception {
-        out.writeBytes(msg.marshall());
+        out.writeByte(8);
+        out.writeByte(msg.getError().code());
+        out.writeInt(msg.getId());
     }
+
 }
