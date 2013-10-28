@@ -2,9 +2,11 @@ package com.notnoop.apns.internal.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.notnoop.apns.ApnsNotification;
 import com.notnoop.apns.DeliveryError;
@@ -12,13 +14,17 @@ import com.notnoop.apns.DeliveryResult;
 
 public class MockChannel extends EmbeddedChannel {
 
+    private static final Logger LOGGER = LoggerFactory
+            .getLogger(MockChannel.class);
+
     private static final ApnsResultEncoder ENCODER = new ApnsResultEncoder();
 
     private final int failureAt;
     private final DeliveryError error;
 
-    public MockChannel(int failureAt, DeliveryError error) {
-        super(new LoggingHandler(LogLevel.DEBUG));
+    public MockChannel(int failureAt, DeliveryError error,
+            ChannelHandler... handlers) {
+        super(handlers);
         this.error = error;
         this.failureAt = failureAt;
     }
@@ -28,7 +34,10 @@ public class MockChannel extends EmbeddedChannel {
         ChannelFuture future = super.writeAndFlush(msg);
 
         if (msg instanceof ApnsNotification) {
-            if (((ApnsNotification) msg).getIdentifier() == failureAt) {
+            ApnsNotification notification = (ApnsNotification) msg;
+            LOGGER.debug("Received message {}", msg);
+            System.out.println(notification);
+            if (notification.getIdentifier() == failureAt) {
                 ByteBuf buf = alloc().buffer(6);
                 try {
                     ENCODER.encode(null, new DeliveryResult(error, failureAt),

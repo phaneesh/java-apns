@@ -1,10 +1,13 @@
 package com.notnoop.apns.internal.netty;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -17,7 +20,7 @@ import com.notnoop.apns.DeliveryResult;
 import com.notnoop.apns.internal.ApnsConnection;
 import com.notnoop.apns.internal.ApnsConnectionImpl;
 import com.notnoop.apns.internal.Utilities;
-import com.notnoop.apns.internal.netty.ChannelProvider.ChannelConfigurer;
+import com.notnoop.apns.internal.netty.ChannelProvider.ChannelHandlersProvider;
 import com.notnoop.exceptions.ApnsDeliveryErrorException;
 import com.notnoop.exceptions.NetworkIOException;
 
@@ -40,16 +43,16 @@ public class NettyApnsConnectionImpl implements ApnsConnection {
         // this.readTimeout = readTimeout;
         this.delegate = delegate;
         this.channelProvider = channelProvider;
-        channelProvider.setChannelConfigurer(new ChannelConfigurer() {
-            @Override
-            public void configure(Channel channel) {
-                channel.pipeline().addLast("encoder",
-                        new ApnsNotificationEncoder());
-                channel.pipeline().addLast("decoder", new ApnsResultDecoder());
-                channel.pipeline().addLast("handler",
-                        new ApnsHandler(NettyApnsConnectionImpl.this));
-            }
-        });
+        channelProvider
+                .setChannelHandlersProvider(new ChannelHandlersProvider() {
+                    @Override
+                    public List<ChannelHandler> getChannelHandlers() {
+                        return Arrays.<ChannelHandler> asList(
+                                new ApnsNotificationEncoder(),
+                                new ApnsResultDecoder(), new ApnsHandler(
+                                        NettyApnsConnectionImpl.this));
+                    }
+                });
 
         channelProvider.init();
     }

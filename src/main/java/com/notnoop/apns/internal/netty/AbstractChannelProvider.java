@@ -7,15 +7,16 @@ public abstract class AbstractChannelProvider implements ChannelProvider {
 
     protected final Logger LOGGER = LoggerFactory.getLogger(this.getClass());
 
-    private ChannelConfigurer channelConfigurer;
-
-    public ChannelConfigurer getChannelConfigurer() {
-        return channelConfigurer;
-    }
+    private ChannelHandlersProvider channelHandlersProvider;
 
     @Override
-    public void setChannelConfigurer(ChannelConfigurer channelConfigurer) {
-        this.channelConfigurer = channelConfigurer;
+    public void setChannelHandlersProvider(
+            ChannelHandlersProvider channelHandlersProvider) {
+        this.channelHandlersProvider = channelHandlersProvider;
+    }
+
+    public ChannelHandlersProvider getChannelHandlersProvider() {
+        return channelHandlersProvider;
     }
 
 }

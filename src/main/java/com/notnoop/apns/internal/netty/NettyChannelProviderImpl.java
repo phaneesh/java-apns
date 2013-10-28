@@ -3,6 +3,7 @@ package com.notnoop.apns.internal.netty;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
@@ -14,14 +15,9 @@ import java.io.IOException;
 
 import javax.net.ssl.SSLContext;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.notnoop.apns.ReconnectPolicy;
 
 public class NettyChannelProviderImpl extends AbstractChannelProvider {
-    protected static final Logger LOGGER = LoggerFactory
-            .getLogger(NettyChannelProviderImpl.class);
 
     private final ReconnectPolicy reconnectPolicy;
     private final SSLContext sslContext;
@@ -90,9 +86,12 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
             protected void initChannel(SocketChannel ch) throws Exception {
                 ch.pipeline().addFirst("ssl",
                         new SslHandler(sslContext.createSSLEngine()));
-                NettyChannelProviderImpl.this.getChannelConfigurer().configure(
-                        ch);
+                for (ChannelHandler h : NettyChannelProviderImpl.this
+                        .getChannelHandlersProvider().getChannelHandlers()) {
+                    ch.pipeline().addLast(h);
+                }
             }
         });
     }
+
 }

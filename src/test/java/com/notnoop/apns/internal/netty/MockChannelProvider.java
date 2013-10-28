@@ -1,6 +1,7 @@
 package com.notnoop.apns.internal.netty;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 
 import java.io.IOException;
 import java.util.LinkedList;
@@ -17,9 +18,11 @@ public class MockChannelProvider extends AbstractChannelProvider {
     @Override
     public synchronized Channel getChannel() {
         if (currentChannel == null || !currentChannel.isOpen()) {
-            LOGGER.info("Opening a new channel...");
-            currentChannel = new MockChannel(failureAt, errorCode);
-            getChannelConfigurer().configure(currentChannel);
+            System.out.println("Opening a new channel, failure will be "
+                    + failureAt);
+            ChannelHandler[] handlers = getChannelHandlersProvider()
+                    .getChannelHandlers().toArray(new ChannelHandler[0]);
+            currentChannel = new MockChannel(failureAt, errorCode, handlers);
             mockChannels.add(currentChannel);
         }
         return currentChannel;

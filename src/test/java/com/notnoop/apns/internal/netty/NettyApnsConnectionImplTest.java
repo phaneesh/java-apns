@@ -1,15 +1,21 @@
 package com.notnoop.apns.internal.netty;
 
 import static org.junit.Assert.*;
+import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
 
 import org.junit.Test;
 
 import com.notnoop.apns.ApnsDelegate;
+import com.notnoop.apns.ApnsDelegateAdapter;
+import com.notnoop.apns.DeliveryError;
+import com.notnoop.apns.DeliveryResult;
 import com.notnoop.apns.EnhancedApnsNotification;
 
 public class NettyApnsConnectionImplTest {
+    ApnsResultEncoder resultEncoder = new ApnsResultEncoder();
 
     private static final int N = 100;
 
@@ -48,63 +54,40 @@ public class NettyApnsConnectionImplTest {
         return new MockChannelProvider();
     }
 
-    // @Test
-    // public void testSendMessages_failure_at_70() throws InterruptedException
-    // {
-    // int fails = 70;
-    // ApnsResultEncoder resultEncoder = new ApnsResultEncoder();
-    // EnhancedApnsNotification[] notifications = new
-    // EnhancedApnsNotification[N];
-    // for (int i = 0; i < N; i++) {
-    // notifications[i] = new EnhancedApnsNotification(i, 10,
-    // "asdf1234asdf5678asdf9012asdf3456".getBytes(),
-    // ("hello there notification " + i).getBytes());
-    // }
-    //
-    // EmbeddedChannel debugChannel = new EmbeddedChannel();
-    // ChannelProvider provider = Mockito.mock(ChannelProvider.class);
-    // Mockito.when(provider.getChannel()).thenReturn(debugChannel);
-    //
-    // NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(provider,
-    // new ApnsDelegateAdapter());
-    //
-    // debugChannel.pipeline().addLast(new ApnsHandler(conn),
-    // new ApnsNotificationEncoder(), new ApnsResultDecoder());
-    //
-    // DeliveryResult error = new DeliveryResult(DeliveryError.INVALID_TOKEN,
-    // fails);
-    //
-    // for (int i = 0; i < error.getId(); i++) {
-    // conn.sendMessage(notifications[i], false);
-    // }
-    //
-    // // Send error
-    //
-    // ByteBuf buf = debugChannel.alloc().buffer(6);
-    // try {
-    // resultEncoder.encode(null, error, buf);
-    // } catch (Exception e) {
-    // throw new RuntimeException(e);
-    // }
-    // debugChannel.writeInbound(buf);
-    // debugChannel.close();
-    // debugChannel = getNewEmbeddedChannel(conn);
-    // Mockito.verify(conn).onMessageReceived(
-    // Matchers.any(ChannelHandlerContext.class), Matchers.eq(error));
-    //
-    // for (int i = error.getId(); i < N; i++) {
-    //
-    // }
-    //
-    // assertEquals(N, debugChannel.outboundMessages().size());
-    //
-    // for (int i = 0; i < N; i++) {
-    // ByteBuf buffer = (ByteBuf) debugChannel.outboundMessages().poll();
-    // byte[] expected = notifications[i].marshall();
-    // byte[] received = new byte[expected.length];
-    // buffer.getBytes(0, received);
-    // assertArrayEquals(expected, received);
-    // }
-    //
-    // }
+    @SuppressWarnings("resource")
+    @Test
+    public void testSendMessages_failure_at_70() throws InterruptedException {
+        int fails = 70;
+        DeliveryError failure = DeliveryError.MISSING_DEVICE_TOKEN;
+        EnhancedApnsNotification[] notifications = new EnhancedApnsNotification[N];
+        for (int i = 0; i < N; i++) {
+            notifications[i] = new EnhancedApnsNotification(i, 10,
+                    "asdf1234asdf5678asdf9012asdf3456".getBytes(),
+                    ("hello there notification " + i).getBytes());
+        }
+
+        MockChannelProvider provider = mockChannelProvider(fails);
+        provider.setErrorCode(DeliveryError.MISSING_DEVICE_TOKEN);
+        provider.setFailureAt(fails);
+        provider.init();
+
+        NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(provider,
+                new ApnsDelegateAdapter());
+        conn = spy(conn);
+
+        for (int i = 0; i < N; i++) {
+            conn.sendMessage(notifications[i], false);
+        }
+        // Verify an error was sent...
+        verify(conn).onMessageReceived(any(ChannelHandlerContext.class),
+                eq(new DeliveryResult(failure, fails)));
+        // Verify there have been two channels in mock provider...
+        assertEquals(2, provider.getMockChannels().size());
+        // Verify the content in both channels is as expected...
+        assertEquals(fails + 1, provider.getMockChannels().get(0)
+                .inboundMessages().size());
+        assertEquals(N - fails - 1, provider.getMockChannels().get(1)
+                .inboundMessages().size());
+
+    }
 }
