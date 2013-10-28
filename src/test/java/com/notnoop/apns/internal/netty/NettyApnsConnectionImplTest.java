@@ -32,6 +32,7 @@ public class NettyApnsConnectionImplTest {
 
         NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(
                 channelProvider, mock(ApnsDelegate.class));
+        conn.init();
 
         for (int i = 0; i < N; i++) {
             conn.sendMessage(notifications[i], false);

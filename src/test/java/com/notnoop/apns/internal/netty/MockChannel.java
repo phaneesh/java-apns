@@ -35,10 +35,10 @@ public class MockChannel extends EmbeddedChannel {
 
         if (msg instanceof ApnsNotification) {
             ApnsNotification notification = (ApnsNotification) msg;
-            LOGGER.debug("Received message {}", msg);
-            System.out.println(notification);
+            LOGGER.debug("Received message {}", notification);
             if (notification.getIdentifier() == failureAt) {
                 ByteBuf buf = alloc().buffer(6);
+                buf.retain();
                 try {
                     ENCODER.encode(null, new DeliveryResult(error, failureAt),
                             buf);
@@ -47,6 +47,7 @@ public class MockChannel extends EmbeddedChannel {
                 }
                 writeInbound(buf);
                 close();
+                buf.release();
             }
         }
 

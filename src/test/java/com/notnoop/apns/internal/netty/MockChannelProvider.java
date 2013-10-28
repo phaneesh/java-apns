@@ -18,8 +18,8 @@ public class MockChannelProvider extends AbstractChannelProvider {
     @Override
     public synchronized Channel getChannel() {
         if (currentChannel == null || !currentChannel.isOpen()) {
-            System.out.println("Opening a new channel, failure will be "
-                    + failureAt);
+            LOGGER.info("Opening a new channel, failure will be at {}",
+                    failureAt);
             ChannelHandler[] handlers = getChannelHandlersProvider()
                     .getChannelHandlers().toArray(new ChannelHandler[0]);
             currentChannel = new MockChannel(failureAt, errorCode, handlers);

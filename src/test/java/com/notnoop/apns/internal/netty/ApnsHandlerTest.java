@@ -14,29 +14,29 @@ import com.notnoop.apns.DeliveryError;
 import com.notnoop.apns.DeliveryResult;
 
 public class ApnsHandlerTest {
-	@Mock
-	NettyApnsConnectionImpl owner;
-	@Mock
-	ChannelHandlerContext ctx;
+    @Mock
+    NettyApnsConnectionImpl owner;
+    @Mock
+    ChannelHandlerContext ctx;
 
-	ApnsHandler apnsHandler;
+    ApnsHandler apnsHandler;
 
-	@Before
-	public void setUp() throws Exception {
-		MockitoAnnotations.initMocks(this);
-		apnsHandler = new ApnsHandler(owner);
-	}
+    @Before
+    public void setUp() throws Exception {
+        MockitoAnnotations.initMocks(this);
+        apnsHandler = new ApnsHandler(owner);
+    }
 
-	@After
-	public void tearDown() throws Exception {
-	}
+    @After
+    public void tearDown() throws Exception {
+    }
 
-	@Test
-	public void testChannelRead0() throws Exception {
-		DeliveryResult msg = new DeliveryResult(DeliveryError.INVALID_TOKEN,
-				1234);
-		apnsHandler.channelRead0(ctx, msg);
-		verify(owner).onMessageReceived(eq(ctx), eq(msg));
-	}
+    @Test
+    public void testChannelRead0() throws Exception {
+        DeliveryResult msg = new DeliveryResult(DeliveryError.INVALID_TOKEN,
+                1234);
+        apnsHandler.channelRead0(ctx, msg);
+        verify(owner).onMessageReceived(eq(ctx), eq(msg));
+    }
 
 }
