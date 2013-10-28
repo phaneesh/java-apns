@@ -43,6 +43,13 @@ public class NettyApnsConnectionImpl implements ApnsConnection {
         // this.readTimeout = readTimeout;
         this.delegate = delegate;
         this.channelProvider = channelProvider;
+    }
+
+    // This was done in the constructor, but it was impossible to spy the
+    // reference to NettyApnsConnectionImpl.this. This is code smell and needs
+    // to be addressed... fur to the shake of testability, for now I'll keep it
+    // this way...
+    public void init() {
         channelProvider
                 .setChannelHandlersProvider(new ChannelHandlersProvider() {
                     @Override

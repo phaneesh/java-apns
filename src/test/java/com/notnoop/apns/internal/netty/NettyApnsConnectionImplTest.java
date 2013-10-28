@@ -75,6 +75,8 @@ public class NettyApnsConnectionImplTest {
                 new ApnsDelegateAdapter());
         conn = spy(conn);
 
+        conn.init();
+
         for (int i = 0; i < N; i++) {
             conn.sendMessage(notifications[i], false);
         }
@@ -85,9 +87,9 @@ public class NettyApnsConnectionImplTest {
         assertEquals(2, provider.getMockChannels().size());
         // Verify the content in both channels is as expected...
         assertEquals(fails + 1, provider.getMockChannels().get(0)
-                .inboundMessages().size());
+                .outboundMessages().size());
         assertEquals(N - fails - 1, provider.getMockChannels().get(1)
-                .inboundMessages().size());
+                .outboundMessages().size());
 
     }
 }
