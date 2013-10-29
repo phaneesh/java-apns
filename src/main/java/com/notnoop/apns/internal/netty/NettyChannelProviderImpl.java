@@ -42,7 +42,6 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         bootstrap.group(eventLoopGroup);
         bootstrap.channel(NioSocketChannel.class);
         bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
-        bootstrap.option(ChannelOption.AUTO_READ, value)
     }
 
     @Override
