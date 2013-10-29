@@ -20,6 +20,7 @@ public class ApnsResultDecoder extends FixedLengthFrameDecoder {
     @Override
     protected Object decode(ChannelHandlerContext ctx, ByteBuf in)
             throws Exception {
+        System.out.println("Receive " + in.readableBytes());
         ByteBuf frame = (ByteBuf) super.decode(ctx, in);
         if (frame == null) {
             return null;

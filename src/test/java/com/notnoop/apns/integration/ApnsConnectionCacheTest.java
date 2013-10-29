@@ -360,6 +360,7 @@ public class ApnsConnectionCacheTest {
 
 
         Assert.assertTrue(ORIGINAL_CACHE_LENGTH < modifiedCacheLength.get());
+        Thread.sleep(2000);
     }
 
 }

@@ -16,6 +16,7 @@ public class ApnsHandler extends SimpleChannelInboundHandler<DeliveryResult> {
     private final NettyApnsConnectionImpl owner;
 
     public ApnsHandler(NettyApnsConnectionImpl owner) {
+        super(DeliveryResult.class);
         this.owner = owner;
     }
 
@@ -25,5 +26,7 @@ public class ApnsHandler extends SimpleChannelInboundHandler<DeliveryResult> {
         LOGGER.debug("Received message: {}", msg);
         owner.onMessageReceived(ctx, msg);
     }
+    
+    
 
 }
