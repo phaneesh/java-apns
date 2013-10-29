@@ -86,10 +86,9 @@ public class NettyApnsConnectionImpl implements ApnsConnection {
 
 		while (true) {
 			try {
-
+				cacheNotification(m);
 				channel.writeAndFlush(m);
 
-				cacheNotification(m);
 
 				delegate.messageSent(m, fromBuffer);
 				LOGGER.debug("Message \"{}\" sent", m);
@@ -105,6 +104,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection {
 	private void drainBuffer() {
 		ApnsNotification notification = null;
 		if ((notification = notificationsBuffer.poll()) != null) {
+			LOGGER.debug("Resending notification {} from buffer",
+					notification.getIdentifier());
 			sendMessage(notification, true);
 		}
 	}
