@@ -40,7 +40,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         this.sslContext = sslContext;
         bootstrap = new Bootstrap();
         bootstrap.group(eventLoopGroup);
-        bootstrap.channel(OioSocketChannel.class);
+        bootstrap.channel(NioSocketChannel.class);
         // bootstrap.channel(NioSocketChannel.class);
         bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
         // bootstrap.option(ChannelOption.AIO_READ_TIMEOUT, (long) readTimeout);
