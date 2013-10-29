@@ -31,15 +31,18 @@ public class NettyApnsConnectionImpl implements ApnsConnection {
 	private final ApnsDelegate delegate;
 	private final ChannelProvider channelProvider;
 
+	private final boolean autoAdjustCacheLength;
 	private int cacheLength;
 
 	public NettyApnsConnectionImpl(ChannelProvider channelProvider,
-			ApnsDelegate delegate, int cacheLength) {
+			ApnsDelegate delegate, int cacheLength,
+			boolean autoAdjustCacheLength) {
 		this.cachedNotifications = new ConcurrentLinkedQueue<ApnsNotification>();
 		this.notificationsBuffer = new ConcurrentLinkedQueue<ApnsNotification>();
 		this.delegate = delegate;
 		this.channelProvider = channelProvider;
 		this.cacheLength = cacheLength;
+		this.autoAdjustCacheLength = autoAdjustCacheLength;
 	}
 
 	// This was done in the constructor, but it was impossible to spy the
@@ -89,7 +92,6 @@ public class NettyApnsConnectionImpl implements ApnsConnection {
 				cacheNotification(m);
 				channel.writeAndFlush(m);
 
-
 				delegate.messageSent(m, fromBuffer);
 				LOGGER.debug("Message \"{}\" sent", m);
 				drainBuffer();
@@ -131,6 +133,10 @@ public class NettyApnsConnectionImpl implements ApnsConnection {
 				cachedNotifications.addAll(tempCache);
 				LOGGER.warn("Received error for message "
 						+ "that wasn't in the cache...");
+				if (autoAdjustCacheLength) {
+					cacheLength = cacheLength + (tempCache.size() / 2);
+					delegate.cacheLengthExceeded(cacheLength);
+				}
 				delegate.messageSendFailed(null,
 						new ApnsDeliveryErrorException(msg.getError()));
 			}
