@@ -58,7 +58,7 @@ public class NettyApnsConnectionImplTest {
     @SuppressWarnings("resource")
     @Test
     public void testSendMessages_failure_at_70() throws InterruptedException {
-        int fails = 70;
+        int failAt = 70;
         DeliveryError failure = DeliveryError.MISSING_DEVICE_TOKEN;
         EnhancedApnsNotification[] notifications = new EnhancedApnsNotification[N];
         for (int i = 0; i < N; i++) {
@@ -67,9 +67,9 @@ public class NettyApnsConnectionImplTest {
                     ("hello there notification " + i).getBytes());
         }
 
-        MockChannelProvider provider = mockChannelProvider(fails);
+        MockChannelProvider provider = mockChannelProvider(failAt);
         provider.setErrorCode(DeliveryError.MISSING_DEVICE_TOKEN);
-        provider.setFailureAt(fails);
+        provider.setFailureAt(failAt);
         provider.init();
 
         NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(provider,
@@ -83,13 +83,13 @@ public class NettyApnsConnectionImplTest {
         }
         // Verify an error was sent...
         verify(conn).onMessageReceived(any(ChannelHandlerContext.class),
-                eq(new DeliveryResult(failure, fails)));
+                eq(new DeliveryResult(failure, failAt)));
         // Verify there have been two channels in mock provider...
         assertEquals(2, provider.getMockChannels().size());
         // Verify the content in both channels is as expected...
-        assertEquals(fails + 1, provider.getMockChannels().get(0)
+        assertEquals(failAt + 1, provider.getMockChannels().get(0)
                 .outboundMessages().size());
-        assertEquals(N - fails - 1, provider.getMockChannels().get(1)
+        assertEquals(N - failAt - 1, provider.getMockChannels().get(1)
                 .outboundMessages().size());
 
     }
