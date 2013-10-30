@@ -9,7 +9,6 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.channel.socket.oio.OioSocketChannel;
 import io.netty.handler.ssl.SslHandler;
 
 import java.io.IOException;
@@ -71,9 +70,10 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
 
     @Override
     public synchronized void close() throws IOException {
-        if (channelFuture.channel().isOpen()) {
+        Channel channel = null;
+        if ((channel = channelFuture.channel()) != null) {
             try {
-                channelFuture.channel().close().sync();
+                channel.close().sync();
                 channelFuture = null;
             } catch (InterruptedException e) {
                 LOGGER.error("Error while closing connection", e);

@@ -10,7 +10,6 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +20,8 @@ import com.notnoop.apns.DeliveryResult;
 import com.notnoop.apns.internal.ApnsConnection;
 import com.notnoop.apns.internal.Utilities;
 import com.notnoop.apns.internal.netty.ChannelProvider.ChannelHandlersProvider;
+import com.notnoop.apns.internal.netty.cache.CacheStore;
+import com.notnoop.apns.internal.netty.cache.CacheStore.Drainer;
 import com.notnoop.exceptions.ApnsDeliveryErrorException;
 import com.notnoop.exceptions.NetworkIOException;
 
@@ -28,23 +29,27 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
         DeliveryResultListener {
     private static final Logger LOGGER = LoggerFactory
             .getLogger(NettyApnsConnectionImpl.class);
-    private final Queue<ApnsNotification> cachedNotifications,
-            notificationsBuffer;
+
     private final ApnsDelegate delegate;
     private final ChannelProvider channelProvider;
-
-    private final boolean autoAdjustCacheLength;
-    private int cacheLength;
+    private final CacheStore cacheStore;
 
     public NettyApnsConnectionImpl(ChannelProvider channelProvider,
-            ApnsDelegate delegate, int cacheLength,
-            boolean autoAdjustCacheLength) {
-        this.cachedNotifications = new ConcurrentLinkedQueue<ApnsNotification>();
-        this.notificationsBuffer = new ConcurrentLinkedQueue<ApnsNotification>();
+            ApnsDelegate delegate, CacheStore cacheStore) {
+
         this.delegate = delegate;
         this.channelProvider = channelProvider;
-        this.cacheLength = cacheLength;
-        this.autoAdjustCacheLength = autoAdjustCacheLength;
+        this.cacheStore = cacheStore;
+    }
+
+    @Override
+    public void setCacheLength(int cacheLength) {
+        cacheStore.setCacheLength(cacheLength);
+    }
+
+    @Override
+    public int getCacheLength() {
+        return cacheStore.getCacheLength();
     }
 
     // This was done in the constructor, but it was impossible to spy the
@@ -72,14 +77,6 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
         channelProvider.close();
     }
 
-    private void cacheNotification(ApnsNotification notification) {
-        cachedNotifications.add(notification);
-        while (cachedNotifications.size() > cacheLength) {
-            cachedNotifications.poll();
-            LOGGER.debug("Removing notification from cache " + notification);
-        }
-    }
-
     @Override
     public synchronized void sendMessage(ApnsNotification m)
             throws NetworkIOException {
@@ -92,13 +89,14 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
 
         while (true) {
             try {
-                cacheNotification(m);
+                cacheStore.add(m);
                 channel.writeAndFlush(m);
 
                 delegate.messageSent(m, fromBuffer);
                 LOGGER.debug("Message \"{}\" sent (fromBuffer={})", m,
                         fromBuffer);
-                drainBuffer();
+                if (!fromBuffer)
+                    drainBuffer();
                 break;
             } catch (Exception e) {
                 delegate.messageSendFailed(m, e);
@@ -108,53 +106,38 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     }
 
     private void drainBuffer() {
-        ApnsNotification notification = null;
-        if ((notification = notificationsBuffer.poll()) != null) {
-            LOGGER.debug("Resending notification {} from buffer",
-                    notification.getIdentifier());
-            sendMessage(notification, true);
-        }
+        cacheStore.drain(new Drainer() {
+            @Override
+            public void process(ApnsNotification notification) {
+                sendMessage(notification, true);
+            }
+        });
     }
 
     @Override
     public void onDeliveryResult(DeliveryResult msg) {
         try {
             Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
-            ApnsNotification notification = null;
-            boolean foundNotification = false;
+            ApnsNotification notification = cacheStore.removeAllBefore(msg,
+                    tempCache);
 
-            while ((notification = cachedNotifications.poll()) != null) {
-                if (notification.getIdentifier() == msg.getId()) {
-                    foundNotification = true;
-                    break;
-                }
-                tempCache.add(notification);
-            }
-
-            if (foundNotification) {
+            if (notification != null) {
                 delegate.messageSendFailed(notification,
                         new ApnsDeliveryErrorException(msg.getError()));
             } else {
-                cachedNotifications.addAll(tempCache);
                 LOGGER.warn("Received error for message "
                         + "that wasn't in the cache...");
-                if (autoAdjustCacheLength) {
-                    cacheLength = cacheLength + (tempCache.size() / 2);
-                    LOGGER.info("Adjusting APNS cache length to {}",
-                            cacheLength);
-                    delegate.cacheLengthExceeded(cacheLength);
+                cacheStore.addAll(tempCache);
+                Integer newCacheLength = cacheStore
+                        .resizeCacheIfNeeded(tempCache.size());
+                if (newCacheLength != null) {
+                    delegate.cacheLengthExceeded(newCacheLength);
                 }
                 delegate.messageSendFailed(null,
                         new ApnsDeliveryErrorException(msg.getError()));
             }
 
-            int resendSize = 0;
-            ApnsNotification cachedNotification = null;
-            while ((cachedNotification = cachedNotifications.poll()) != null) {
-                resendSize++;
-                notificationsBuffer.add(cachedNotification);
-            }
-            delegate.notificationsResent(resendSize);
+            delegate.notificationsResent(cacheStore.moveCacheToBuffer());
             delegate.connectionClosed(msg.getError(), msg.getId());
         } finally {
             try {
@@ -177,16 +160,6 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     public ApnsConnection copy() {
         // TODO Auto-generated method stub
         return null;
-    }
-
-    @Override
-    public void setCacheLength(int cacheLength) {
-        this.cacheLength = cacheLength;
-    }
-
-    @Override
-    public int getCacheLength() {
-        return cacheLength;
     }
 
 }

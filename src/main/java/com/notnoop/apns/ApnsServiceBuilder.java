@@ -30,8 +30,8 @@
  */
 package com.notnoop.apns;
 
+import static com.notnoop.apns.internal.Utilities.*;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.oio.OioEventLoopGroup;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -47,13 +47,19 @@ import java.util.concurrent.ThreadFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
-import com.notnoop.apns.internal.*;
+import com.notnoop.apns.internal.ApnsConnection;
+import com.notnoop.apns.internal.ApnsConnectionImpl;
+import com.notnoop.apns.internal.ApnsFeedbackConnection;
+import com.notnoop.apns.internal.ApnsPooledConnection;
+import com.notnoop.apns.internal.ApnsServiceImpl;
+import com.notnoop.apns.internal.BatchApnsService;
+import com.notnoop.apns.internal.QueuedApnsService;
+import com.notnoop.apns.internal.Utilities;
 import com.notnoop.apns.internal.netty.NettyApnsConnectionImpl;
 import com.notnoop.apns.internal.netty.NettyChannelProviderImpl;
+import com.notnoop.apns.internal.netty.cache.CacheStore;
 import com.notnoop.exceptions.InvalidSSLConfig;
 import com.notnoop.exceptions.RuntimeIOException;
-
-import static com.notnoop.apns.internal.Utilities.*;
 
 /**
  * The class is used to create instances of {@link ApnsService}.
@@ -611,8 +617,8 @@ public class ApnsServiceBuilder {
             NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(
                     new NettyChannelProviderImpl(new NioEventLoopGroup(),
                             reconnectPolicy, gatewayHost, gatewaPort,
-                            readTimeout, sslContext), delegate, cacheLength,
-                    autoAdjustCacheLength);
+                            readTimeout, sslContext), delegate, new CacheStore(
+                            cacheLength, autoAdjustCacheLength));
             conn.init();
             return conn;
 
