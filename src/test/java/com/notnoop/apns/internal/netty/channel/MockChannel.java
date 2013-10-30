@@ -1,4 +1,4 @@
-package com.notnoop.apns.internal.netty;
+package com.notnoop.apns.internal.netty.channel;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import com.notnoop.apns.ApnsNotification;
 import com.notnoop.apns.DeliveryError;
 import com.notnoop.apns.DeliveryResult;
+import com.notnoop.apns.internal.netty.encoding.ApnsResultEncoder;
 
 public class MockChannel extends EmbeddedChannel {
 

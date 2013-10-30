@@ -1,4 +1,4 @@
-package com.notnoop.apns.internal.netty;
+package com.notnoop.apns.internal.netty.encoding;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -10,6 +10,7 @@ import org.mockito.Mockito;
 
 import com.notnoop.apns.DeliveryError;
 import com.notnoop.apns.DeliveryResult;
+import com.notnoop.apns.internal.netty.encoding.ApnsResultDecoder;
 
 public class ApnsResultDecoderTest {
 

@@ -1,4 +1,4 @@
-package com.notnoop.apns.internal.netty;
+package com.notnoop.apns.internal.netty.encoding;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler.Sharable;

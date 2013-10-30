@@ -1,4 +1,4 @@
-package com.notnoop.apns.internal.netty;
+package com.notnoop.apns.internal.netty.channel;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;

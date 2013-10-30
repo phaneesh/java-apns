@@ -1,4 +1,4 @@
-package com.notnoop.apns.internal.netty;
+package com.notnoop.apns.internal.netty.encoding;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -9,6 +9,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.notnoop.apns.EnhancedApnsNotification;
+import com.notnoop.apns.internal.netty.encoding.ApnsNotificationEncoder;
 
 public class ApnsNotificationEncoderTest {
 

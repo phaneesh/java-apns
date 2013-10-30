@@ -1,91 +1,73 @@
 package com.notnoop.apns.internal.netty.cache;
 
 import java.util.Collection;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.notnoop.apns.ApnsNotification;
 import com.notnoop.apns.DeliveryResult;
 
-public class CacheStore {
-    private static final Logger LOGGER = LoggerFactory
-            .getLogger(CacheStore.class);
-    private final Queue<ApnsNotification> cachedNotifications,
-            notificationsBuffer;
-    private final boolean autoAdjustCacheLength;
-    private int cacheLength;
+public interface CacheStore {
+    /**
+     * If this cache requires resize, resize it. TODO make this operation less
+     * 'weird'
+     * 
+     * @param n
+     * @return
+     */
+    Integer resizeCacheIfNeeded(int n);
 
-    public CacheStore(int cacheLength, boolean autoAdjustCacheLength) {
-        this.cachedNotifications = new ConcurrentLinkedQueue<ApnsNotification>();
-        this.notificationsBuffer = new ConcurrentLinkedQueue<ApnsNotification>();
-        this.cacheLength = cacheLength;
-        this.autoAdjustCacheLength = autoAdjustCacheLength;
-    }
+    /**
+     * Add all items in the collection to the cache of notifications
+     * 
+     * @param apnsNotifications
+     */
+    void addAll(Collection<ApnsNotification> apnsNotifications);
 
-    public Integer resizeCacheIfNeeded(int n) {
-        if (autoAdjustCacheLength) {
-            cacheLength = cacheLength + (n / 2);
-            LOGGER.info("Adjusting APNS cache length to {}", cacheLength);
-            return cacheLength;
-        }
-        return null;
-    }
+    /**
+     * Add a single notification to the cache.
+     * 
+     * @param notification
+     */
+    void add(ApnsNotification notification);
 
-    public void addAll(Collection<ApnsNotification> apnsNotifications) {
-        cachedNotifications.addAll(apnsNotifications);
-    }
+    /**
+     * Move existing items in the cache to the buffer.
+     * 
+     * @return The number of items moved.
+     */
+    int moveCacheToBuffer();
 
-    public void add(ApnsNotification notification) {
-        cachedNotifications.add(notification);
-        while (cachedNotifications.size() > cacheLength) {
-            cachedNotifications.poll();
-            LOGGER.debug("Removing notification from cache {}", notification);
-        }
-    }
-    
-    public int moveCacheToBuffer() {
-        int resendSize = 0;
-        ApnsNotification cachedNotification = null;
-        while ((cachedNotification = cachedNotifications.poll()) != null) {
-            resendSize++;
-            notificationsBuffer.add(cachedNotification);
-        }
-        return resendSize;
-    }
-
-    public void drain(Drainer drainer) {
-        ApnsNotification notification = null;
-        while ((notification = notificationsBuffer.poll()) != null) {
-            LOGGER.debug("Resending notification {} from buffer",
-                    notification.getIdentifier());
-            drainer.process(notification);
-        }
-    }
-
-    public ApnsNotification removeAllBefore(DeliveryResult deliveryResult,
-            Collection<ApnsNotification> removed) {
-        ApnsNotification notification = null;
-        while ((notification = cachedNotifications.poll()) != null) {
-            if (notification.getIdentifier() == deliveryResult.getId()) {
-                break;
-            }
-            removed.add(notification);
-        }
-        return notification;
-    }
-
-    public void setCacheLength(int cacheLength) {
-        this.cacheLength = cacheLength;
-    }
-
-    public int getCacheLength() {
-        return cacheLength;
-    }
-
+    /**
+     * Interface to process buffer items.
+     * 
+     * @author flozano
+     * 
+     */
     public static interface Drainer {
         public void process(ApnsNotification notification);
     }
+
+    /**
+     * Drain the buffer and invoke drainer.process() for each item in the
+     * buffer.
+     * 
+     * @param drainer
+     */
+    void drain(Drainer drainer);
+
+    /**
+     * Remove all items before the referred to this delivery result, and add
+     * them to removed collection.
+     * 
+     * @param deliveryResult
+     * @param removed
+     * @return The found item referred by the provided delivery result, if it
+     *         was found.
+     */
+    ApnsNotification removeAllBefore(DeliveryResult deliveryResult,
+            Collection<ApnsNotification> removed);
+
+    void setCacheLength(int cacheLength);
+
+    int getCacheLength();
+
 }

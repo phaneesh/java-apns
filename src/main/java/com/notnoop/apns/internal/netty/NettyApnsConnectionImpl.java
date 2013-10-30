@@ -19,9 +19,12 @@ import com.notnoop.apns.ApnsNotification;
 import com.notnoop.apns.DeliveryResult;
 import com.notnoop.apns.internal.ApnsConnection;
 import com.notnoop.apns.internal.Utilities;
-import com.notnoop.apns.internal.netty.ChannelProvider.ChannelHandlersProvider;
 import com.notnoop.apns.internal.netty.cache.CacheStore;
 import com.notnoop.apns.internal.netty.cache.CacheStore.Drainer;
+import com.notnoop.apns.internal.netty.channel.ChannelProvider;
+import com.notnoop.apns.internal.netty.channel.ChannelProvider.ChannelHandlersProvider;
+import com.notnoop.apns.internal.netty.encoding.ApnsNotificationEncoder;
+import com.notnoop.apns.internal.netty.encoding.ApnsResultDecoder;
 import com.notnoop.exceptions.ApnsDeliveryErrorException;
 import com.notnoop.exceptions.NetworkIOException;
 
@@ -115,7 +118,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     }
 
     @Override
-    public void onDeliveryResult(DeliveryResult msg) {
+    public synchronized void onDeliveryResult(DeliveryResult msg) {
         try {
             Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
             ApnsNotification notification = cacheStore.removeAllBefore(msg,
@@ -125,8 +128,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                 delegate.messageSendFailed(notification,
                         new ApnsDeliveryErrorException(msg.getError()));
             } else {
-                LOGGER.warn("Received error for message "
-                        + "that wasn't in the cache...");
+                LOGGER.warn("Received error for message that wasn't in the cache...");
                 cacheStore.addAll(tempCache);
                 Integer newCacheLength = cacheStore
                         .resizeCacheIfNeeded(tempCache.size());

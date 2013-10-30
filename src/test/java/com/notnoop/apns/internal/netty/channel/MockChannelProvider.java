@@ -1,4 +1,4 @@
-package com.notnoop.apns.internal.netty;
+package com.notnoop.apns.internal.netty.channel;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
@@ -8,6 +8,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import com.notnoop.apns.DeliveryError;
+import com.notnoop.apns.internal.netty.channel.AbstractChannelProvider;
 
 public class MockChannelProvider extends AbstractChannelProvider {
     private final List<MockChannel> mockChannels = new LinkedList<MockChannel>();

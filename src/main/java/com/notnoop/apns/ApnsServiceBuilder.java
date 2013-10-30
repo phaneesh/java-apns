@@ -56,8 +56,8 @@ import com.notnoop.apns.internal.BatchApnsService;
 import com.notnoop.apns.internal.QueuedApnsService;
 import com.notnoop.apns.internal.Utilities;
 import com.notnoop.apns.internal.netty.NettyApnsConnectionImpl;
-import com.notnoop.apns.internal.netty.NettyChannelProviderImpl;
-import com.notnoop.apns.internal.netty.cache.CacheStore;
+import com.notnoop.apns.internal.netty.cache.CacheStoreImpl;
+import com.notnoop.apns.internal.netty.channel.NettyChannelProviderImpl;
 import com.notnoop.exceptions.InvalidSSLConfig;
 import com.notnoop.exceptions.RuntimeIOException;
 
@@ -617,7 +617,7 @@ public class ApnsServiceBuilder {
             NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(
                     new NettyChannelProviderImpl(new NioEventLoopGroup(),
                             reconnectPolicy, gatewayHost, gatewaPort,
-                            readTimeout, sslContext), delegate, new CacheStore(
+                            readTimeout, sslContext), delegate, new CacheStoreImpl(
                             cacheLength, autoAdjustCacheLength));
             conn.init();
             return conn;

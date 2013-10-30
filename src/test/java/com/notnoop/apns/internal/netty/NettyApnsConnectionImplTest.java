@@ -12,7 +12,9 @@ import com.notnoop.apns.ApnsDelegateAdapter;
 import com.notnoop.apns.DeliveryError;
 import com.notnoop.apns.DeliveryResult;
 import com.notnoop.apns.EnhancedApnsNotification;
-import com.notnoop.apns.internal.netty.cache.CacheStore;
+import com.notnoop.apns.internal.netty.cache.CacheStoreImpl;
+import com.notnoop.apns.internal.netty.channel.MockChannelProvider;
+import com.notnoop.apns.internal.netty.encoding.ApnsResultEncoder;
 
 public class NettyApnsConnectionImplTest {
     ApnsResultEncoder resultEncoder = new ApnsResultEncoder();
@@ -31,7 +33,7 @@ public class NettyApnsConnectionImplTest {
         MockChannelProvider channelProvider = mockChannelProvider();
 
         NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(
-                channelProvider, mock(ApnsDelegate.class), new CacheStore(200,
+                channelProvider, mock(ApnsDelegate.class), new CacheStoreImpl(200,
                         true));
         conn.init();
 
@@ -74,7 +76,7 @@ public class NettyApnsConnectionImplTest {
         provider.init();
 
         NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(provider,
-                new ApnsDelegateAdapter(), new CacheStore(200, true));
+                new ApnsDelegateAdapter(), new CacheStoreImpl(200, true));
         conn = spy(conn);
 
         conn.init();

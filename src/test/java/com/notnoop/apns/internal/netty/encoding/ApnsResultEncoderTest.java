@@ -1,4 +1,4 @@
-package com.notnoop.apns.internal.netty;
+package com.notnoop.apns.internal.netty.encoding;
 
 import static org.junit.Assert.*;
 import io.netty.buffer.ByteBuf;
@@ -10,6 +10,8 @@ import org.mockito.Mockito;
 
 import com.notnoop.apns.DeliveryError;
 import com.notnoop.apns.DeliveryResult;
+import com.notnoop.apns.internal.netty.encoding.ApnsResultDecoder;
+import com.notnoop.apns.internal.netty.encoding.ApnsResultEncoder;
 
 public class ApnsResultEncoderTest {
     ChannelHandlerContext ctx = Mockito.mock(ChannelHandlerContext.class);
