@@ -121,6 +121,7 @@ public class ApnsConnectionCacheTest {
         Assert.assertEquals(EXPECTED_RESEND_COUNT, numResent.get());
         Assert.assertEquals(EXPECTED_SEND_COUNT, numSent.get());
 
+        service.stop();
     }
 
     /**
@@ -189,6 +190,8 @@ public class ApnsConnectionCacheTest {
         Assert.assertEquals(EXPECTED_RESEND_COUNT, numResent.get());
         Assert.assertEquals(EXPECTED_SEND_COUNT, numSent.get());
 
+        service.stop();
+
     }
 
     /**
@@ -245,6 +248,9 @@ public class ApnsConnectionCacheTest {
         sync.await();
 
         Assert.assertEquals(EXPECTED_ERROR_COUNT, numError.get());
+
+        service.stop();
+
     }
 
     /**
@@ -318,6 +324,8 @@ public class ApnsConnectionCacheTest {
         while (sync.get() != 0) {
             Thread.yield();
         }
+        service.stop();
+
     }
 
     /**
@@ -385,6 +393,8 @@ public class ApnsConnectionCacheTest {
         sync.await();
 
         Assert.assertTrue(ORIGINAL_CACHE_LENGTH < modifiedCacheLength.get());
+
+        service.stop();
     }
 
 }

@@ -72,7 +72,8 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
     @Override
     public synchronized void close() throws IOException {
         Channel channel = null;
-        if ((channel = channelFuture.channel()) != null) {
+        if (channelFuture != null
+                && (channel = channelFuture.channel()) != null) {
             try {
                 channel.close().sync();
                 channelFuture = null;

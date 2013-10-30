@@ -10,6 +10,8 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +38,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     private final ApnsDelegate delegate;
     private final ChannelProvider channelProvider;
     private final CacheStore cacheStore;
+    private final ExecutorService executorService = Executors
+            .newSingleThreadExecutor();
 
     public NettyApnsConnectionImpl(ChannelProvider channelProvider,
             ApnsDelegate delegate, CacheStore cacheStore) {
@@ -77,6 +81,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
 
     @Override
     public synchronized void close() throws IOException {
+        executorService.shutdown();
         channelProvider.close();
     }
 
@@ -118,38 +123,51 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     }
 
     @Override
-    public synchronized void onDeliveryResult(DeliveryResult msg) {
+    public synchronized void onDeliveryResult(final DeliveryResult msg) {
         try {
-            Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
-            ApnsNotification notification = cacheStore.removeAllBefore(msg,
-                    tempCache);
-
-            if (notification != null) {
-                delegate.messageSendFailed(notification,
-                        new ApnsDeliveryErrorException(msg.getError()));
-            } else {
-                LOGGER.warn("Received error for message that wasn't in the cache...");
-                cacheStore.addAll(tempCache);
-                Integer newCacheLength = cacheStore
-                        .resizeCacheIfNeeded(tempCache.size());
-                if (newCacheLength != null) {
-                    delegate.cacheLengthExceeded(newCacheLength);
-                }
-                delegate.messageSendFailed(null,
-                        new ApnsDeliveryErrorException(msg.getError()));
-            }
-
-            delegate.notificationsResent(cacheStore.moveCacheToBuffer());
-            delegate.connectionClosed(msg.getError(), msg.getId());
-        } finally {
-            try {
-                close();
-                drainBuffer();
-
-            } catch (IOException e) {
-                LOGGER.error("I/O Exception while closing", e);
-            }
+            channelProvider.close();
+        } catch (IOException e1) {
+            LOGGER.error("Error while trying to close connection");
         }
+        executorService.submit(new Runnable() {
+
+            @Override
+            public void run() {
+                Integer newCacheLength = null;
+                try {
+                    Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
+                    ApnsNotification notification = cacheStore.removeAllBefore(
+                            msg, tempCache);
+
+                    if (notification != null) {
+                        delegate.messageSendFailed(notification,
+                                new ApnsDeliveryErrorException(msg.getError()));
+                    } else {
+                        LOGGER.warn("Received error for message that wasn't in the cache...");
+                        cacheStore.addAll(tempCache);
+                        newCacheLength = cacheStore
+                                .resizeCacheIfNeeded(tempCache.size());
+
+                        delegate.messageSendFailed(null,
+                                new ApnsDeliveryErrorException(msg.getError()));
+                    }
+
+                    delegate.notificationsResent(cacheStore.moveCacheToBuffer());
+                    delegate.connectionClosed(msg.getError(), msg.getId());
+                } finally {
+                    try {
+                        channelProvider.close();
+                        drainBuffer();
+                        if (newCacheLength != null) {
+                            delegate.cacheLengthExceeded(newCacheLength);
+                        }
+                    } catch (IOException e) {
+                        LOGGER.error("I/O Exception while closing", e);
+                    }
+                }
+            }
+        });
+
     }
 
     @Override
