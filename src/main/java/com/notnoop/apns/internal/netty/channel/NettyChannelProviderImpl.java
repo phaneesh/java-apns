@@ -59,6 +59,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         if (channelFuture == null || !channelFuture.channel().isActive()) {
             try {
                 channelFuture = bootstrap.connect(host, port).sync();
+                reconnectPolicy.reconnected();
             } catch (InterruptedException e) {
                 LOGGER.error("Error while connecting", e);
             }
