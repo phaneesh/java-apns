@@ -1,6 +1,14 @@
 package com.notnoop.apns.integration;
 
-import org.junit.*;
+import static com.notnoop.apns.utils.FixedCertificates.*;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 import com.notnoop.apns.APNS;
 import com.notnoop.apns.ApnsDelegate;
@@ -11,10 +19,6 @@ import com.notnoop.apns.EnhancedApnsNotification;
 import com.notnoop.apns.SimpleApnsNotification;
 import com.notnoop.apns.utils.ApnsServerStub;
 import com.notnoop.apns.utils.FixedCertificates;
-import static com.notnoop.apns.utils.FixedCertificates.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ApnsConnectionCacheTest {
 
@@ -43,8 +47,7 @@ public class ApnsConnectionCacheTest {
         server = null;
     }
 
-
-        /**
+    /**
      * Test1 to make sure that after rejected notification in-flight
      * notifications are re-transmitted
      * 
@@ -68,6 +71,7 @@ public class ApnsConnectionCacheTest {
         ApnsService service = APNS.newService().withSSLContext(clientContext())
                 .withGatewayDestination(TEST_HOST, TEST_GATEWAY_PORT)
                 .withDelegate(new ApnsDelegate() {
+                    @Override
                     public void messageSent(ApnsNotification message,
                             boolean resent) {
                         if (!resent) {
@@ -76,18 +80,22 @@ public class ApnsConnectionCacheTest {
                         sync.countDown();
                     }
 
+                    @Override
                     public void messageSendFailed(ApnsNotification message,
                             Throwable e) {
                         numSent.decrementAndGet();
                     }
 
+                    @Override
                     public void connectionClosed(DeliveryError e,
                             int messageIdentifier) {
                     }
 
+                    @Override
                     public void cacheLengthExceeded(int newCacheLength) {
                     }
 
+                    @Override
                     public void notificationsResent(int resendCount) {
                         numResent.set(resendCount);
                     }
@@ -96,7 +104,6 @@ public class ApnsConnectionCacheTest {
         for (int i = 0; i < 5; ++i) {
             service.push(eMsg1);
         }
-
 
         service.push(eMsg2);
 
@@ -138,6 +145,7 @@ public class ApnsConnectionCacheTest {
         ApnsService service = APNS.newService().withSSLContext(clientContext())
                 .withGatewayDestination(TEST_HOST, TEST_GATEWAY_PORT)
                 .withDelegate(new ApnsDelegate() {
+                    @Override
                     public void messageSent(ApnsNotification message,
                             boolean resent) {
                         if (!resent) {
@@ -146,18 +154,22 @@ public class ApnsConnectionCacheTest {
                         sync.countDown();
                     }
 
+                    @Override
                     public void messageSendFailed(ApnsNotification message,
                             Throwable e) {
                         numSent.decrementAndGet();
                     }
 
+                    @Override
                     public void connectionClosed(DeliveryError e,
                             int messageIdentifier) {
                     }
 
+                    @Override
                     public void cacheLengthExceeded(int newCacheLength) {
                     }
 
+                    @Override
                     public void notificationsResent(int resendCount) {
                         numResent.set(resendCount);
                     }
@@ -198,23 +210,28 @@ public class ApnsConnectionCacheTest {
         ApnsService service = APNS.newService().withSSLContext(clientContext())
                 .withGatewayDestination(TEST_HOST, TEST_GATEWAY_PORT)
                 .withDelegate(new ApnsDelegate() {
+                    @Override
                     public void messageSent(ApnsNotification message,
                             boolean resent) {
                     }
 
+                    @Override
                     public void messageSendFailed(ApnsNotification message,
                             Throwable e) {
                         numError.incrementAndGet();
                         sync.countDown();
                     }
 
+                    @Override
                     public void connectionClosed(DeliveryError e,
                             int messageIdentifier) {
                     }
 
+                    @Override
                     public void cacheLengthExceeded(int newCacheLength) {
                     }
 
+                    @Override
                     public void notificationsResent(int resendCount) {
                     }
                 }).build();
@@ -250,6 +267,7 @@ public class ApnsConnectionCacheTest {
         ApnsService service = APNS.newService().withSSLContext(clientContext())
                 .withGatewayDestination(TEST_HOST, TEST_GATEWAY_PORT)
                 .asQueued().withDelegate(new ApnsDelegate() {
+                    @Override
                     public void messageSent(ApnsNotification message,
                             boolean resent) {
                         if (!resent) {
@@ -258,19 +276,23 @@ public class ApnsConnectionCacheTest {
                         sync.getAndDecrement();
                     }
 
+                    @Override
                     public void messageSendFailed(ApnsNotification message,
                             Throwable e) {
                         numSent.decrementAndGet();
                         sync.incrementAndGet();
                     }
 
+                    @Override
                     public void connectionClosed(DeliveryError e,
                             int messageIdentifier) {
                     }
 
+                    @Override
                     public void cacheLengthExceeded(int newCacheLength) {
                     }
 
+                    @Override
                     public void notificationsResent(int resendCount) {
                         numResent.set(resendCount);
                         sync.getAndAdd(resendCount);
@@ -318,24 +340,29 @@ public class ApnsConnectionCacheTest {
         ApnsService service = APNS.newService().withSSLContext(clientContext())
                 .withGatewayDestination(TEST_HOST, TEST_GATEWAY_PORT)
                 .withDelegate(new ApnsDelegate() {
+                    @Override
                     public void messageSent(ApnsNotification message,
                             boolean resent) {
 
                     }
 
+                    @Override
                     public void messageSendFailed(ApnsNotification message,
                             Throwable e) {
                     }
 
+                    @Override
                     public void connectionClosed(DeliveryError e,
                             int messageIdentifier) {
                     }
 
+                    @Override
                     public void cacheLengthExceeded(int newCacheLength) {
                         modifiedCacheLength.set(newCacheLength);
                         sync.countDown();
                     }
 
+                    @Override
                     public void notificationsResent(int resendCount) {
                     }
                 }).build();
@@ -343,7 +370,6 @@ public class ApnsConnectionCacheTest {
         for (int i = 0; i < 5; ++i) {
             service.push(eMsg1);
         }
-
 
         service.push(eMsg2);
 
@@ -358,9 +384,7 @@ public class ApnsConnectionCacheTest {
 
         sync.await();
 
-
         Assert.assertTrue(ORIGINAL_CACHE_LENGTH < modifiedCacheLength.get());
-        Thread.sleep(2000);
     }
 
 }

@@ -2,7 +2,6 @@ package com.notnoop.apns.internal.netty;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 
@@ -25,7 +24,8 @@ import com.notnoop.apns.internal.netty.ChannelProvider.ChannelHandlersProvider;
 import com.notnoop.exceptions.ApnsDeliveryErrorException;
 import com.notnoop.exceptions.NetworkIOException;
 
-public class NettyApnsConnectionImpl implements ApnsConnection {
+public class NettyApnsConnectionImpl implements ApnsConnection,
+        DeliveryResultListener {
     private static final Logger LOGGER = LoggerFactory
             .getLogger(NettyApnsConnectionImpl.class);
     private final Queue<ApnsNotification> cachedNotifications,
@@ -116,7 +116,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection {
         }
     }
 
-    public void onMessageReceived(ChannelHandlerContext ctx, DeliveryResult msg) {
+    @Override
+    public void onDeliveryResult(DeliveryResult msg) {
         try {
             Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
             ApnsNotification notification = null;

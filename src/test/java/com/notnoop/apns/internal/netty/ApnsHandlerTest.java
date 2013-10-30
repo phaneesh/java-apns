@@ -15,7 +15,7 @@ import com.notnoop.apns.DeliveryResult;
 
 public class ApnsHandlerTest {
     @Mock
-    NettyApnsConnectionImpl owner;
+    DeliveryResultListener listener;
     @Mock
     ChannelHandlerContext ctx;
 
@@ -24,7 +24,7 @@ public class ApnsHandlerTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        apnsHandler = new ApnsHandler(owner);
+        apnsHandler = new ApnsHandler(listener);
     }
 
     @After
@@ -36,7 +36,7 @@ public class ApnsHandlerTest {
         DeliveryResult msg = new DeliveryResult(DeliveryError.INVALID_TOKEN,
                 1234);
         apnsHandler.channelRead0(ctx, msg);
-        verify(owner).onMessageReceived(eq(ctx), eq(msg));
+        verify(listener).onDeliveryResult(eq(msg));
     }
 
 }

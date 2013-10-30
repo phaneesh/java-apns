@@ -4,7 +4,6 @@ import static org.junit.Assert.*;
 import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
 
 import org.junit.Test;
 
@@ -82,8 +81,7 @@ public class NettyApnsConnectionImplTest {
             conn.sendMessage(notifications[i], false);
         }
         // Verify an error was sent...
-        verify(conn).onMessageReceived(any(ChannelHandlerContext.class),
-                eq(new DeliveryResult(failure, failAt)));
+        verify(conn).onDeliveryResult(eq(new DeliveryResult(failure, failAt)));
         // Verify there have been two channels in mock provider...
         assertEquals(2, provider.getMockChannels().size());
         // Verify the content in both channels is as expected...

@@ -13,20 +13,18 @@ public class ApnsHandler extends SimpleChannelInboundHandler<DeliveryResult> {
     private static final Logger LOGGER = LoggerFactory
             .getLogger(ApnsHandler.class);
 
-    private final NettyApnsConnectionImpl owner;
+    private final DeliveryResultListener listener;
 
-    public ApnsHandler(NettyApnsConnectionImpl owner) {
+    public ApnsHandler(DeliveryResultListener listener) {
         super(DeliveryResult.class);
-        this.owner = owner;
+        this.listener = listener;
     }
 
     @Override
     public void channelRead0(ChannelHandlerContext ctx, DeliveryResult msg)
             throws Exception {
         LOGGER.debug("Received message: {}", msg);
-        owner.onMessageReceived(ctx, msg);
+        listener.onDeliveryResult(msg);
     }
-    
-    
 
 }
