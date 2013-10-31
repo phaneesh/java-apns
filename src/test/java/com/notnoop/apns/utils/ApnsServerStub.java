@@ -116,10 +116,12 @@ public class ApnsServerStub {
 
 
                 waitForError.acquire();
-                
+                System.err.println("ApnsServerStub: Closing socket...");
                 // Close the socket
                 in.close();
                 gatewayOutputStream.close();
+                System.err.println("ApnsServerStub: Socket closed");
+
             } catch (Throwable e) {
                 try {
                     if (in != null) {

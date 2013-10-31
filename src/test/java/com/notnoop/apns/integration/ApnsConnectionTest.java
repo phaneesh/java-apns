@@ -32,7 +32,7 @@ public class ApnsConnectionTest {
         server = null;
     }
 
-    @Test(timeout = 2000)
+    @Test(/* timeout = 2000 */)
     public void sendOneSimple() throws InterruptedException {
 
         server = ApnsServerStub.prepareAndStartServer(TEST_GATEWAY_PORT, TEST_FEEDBACK_PORT);
