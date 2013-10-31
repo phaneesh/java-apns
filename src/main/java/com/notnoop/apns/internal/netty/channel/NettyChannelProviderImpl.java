@@ -42,6 +42,10 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         bootstrap.channel(NioSocketChannel.class);
         bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
     }
+    
+    public ChannelFuture getCurrentChannelFuture() {
+        return channelFuture;
+    }
 
     @Override
     public synchronized Channel getChannel() {

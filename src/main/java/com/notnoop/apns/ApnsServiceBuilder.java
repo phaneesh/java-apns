@@ -31,6 +31,7 @@
 package com.notnoop.apns;
 
 import static com.notnoop.apns.internal.Utilities.*;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 
 import java.io.FileInputStream;
@@ -108,6 +109,7 @@ public class ApnsServiceBuilder {
     private Proxy proxy = null;
     private boolean errorDetection = true;
     private boolean netty = true;
+    private EventLoopGroup nettyEventLoopGroup;
 
     /**
      * Constructs a new instance of {@code ApnsServiceBuilder}
@@ -250,8 +252,27 @@ public class ApnsServiceBuilder {
         return this;
     }
 
+    /**
+     * Enable/disable netty-based backend
+     * 
+     * @param netty
+     * @return
+     */
     public ApnsServiceBuilder withNetty(boolean netty) {
         this.netty = netty;
+        return this;
+    }
+
+    /**
+     * Provide optionally a given event loop group. If none is provided, a new
+     * one will be created for this service.
+     * 
+     * @param eventLoopGroup
+     * @return
+     */
+    public ApnsServiceBuilder withNettyEventLoopGroup(
+            EventLoopGroup nettyEventLoopGroup) {
+        this.nettyEventLoopGroup = nettyEventLoopGroup;
         return this;
     }
 
@@ -615,10 +636,12 @@ public class ApnsServiceBuilder {
     private ApnsConnection buildBasicApnsConnection(SSLSocketFactory sslFactory) {
         if (netty) {
             NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(
-                    new NettyChannelProviderImpl(new NioEventLoopGroup(),
-                            reconnectPolicy, gatewayHost, gatewaPort,
-                            readTimeout, sslContext), delegate, new CacheStoreImpl(
-                            cacheLength, autoAdjustCacheLength));
+                    new NettyChannelProviderImpl(
+                            nettyEventLoopGroup == null ? new NioEventLoopGroup()
+                                    : nettyEventLoopGroup, reconnectPolicy,
+                            gatewayHost, gatewaPort, readTimeout, sslContext),
+                    delegate, new CacheStoreImpl(cacheLength,
+                            autoAdjustCacheLength));
             conn.init();
             return conn;
 
