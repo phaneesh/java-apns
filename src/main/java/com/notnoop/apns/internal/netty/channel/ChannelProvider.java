@@ -14,14 +14,35 @@ import java.util.List;
  * 
  */
 public interface ChannelProvider {
-
+    /**
+     * Obtains the current channel, reconnecting if needed.
+     * 
+     * @return
+     */
     Channel getChannel();
 
+    /**
+     * closes current channel.
+     * 
+     * @throws IOException
+     */
     void close() throws IOException;
 
+    /**
+     * Sets the provider for the list of handlers that will apply to the
+     * channels used by this channel provider.
+     * 
+     * (Yes, too many ****Provider...)
+     * 
+     * @param channelHandlersProvider
+     */
     void setChannelHandlersProvider(
             ChannelHandlersProvider channelHandlersProvider);
 
+    /**
+     * Initialize this channel provider. Like above - it's code smell, to be
+     * removed if possible in the future.
+     */
     void init();
 
     public static interface ChannelHandlersProvider {
