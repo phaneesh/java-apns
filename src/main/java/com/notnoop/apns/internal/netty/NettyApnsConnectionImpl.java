@@ -98,7 +98,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
         while (true) {
             try {
                 cacheStore.add(m);
-                channel.writeAndFlush(m);
+                channel.writeAndFlush(m).sync();
 
                 delegate.messageSent(m, fromBuffer);
                 LOGGER.debug("Message \"{}\" sent (fromBuffer={})", m,
