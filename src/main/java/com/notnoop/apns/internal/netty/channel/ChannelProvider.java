@@ -28,6 +28,14 @@ public interface ChannelProvider {
      */
     void close() throws IOException;
 
+    void runWithChannel(WithChannelAction action) throws Exception;
+
+    public static interface WithChannelAction {
+
+        void perform(Channel channel) throws Exception;
+
+    }
+
     /**
      * Sets the provider for the list of handlers that will apply to the
      * channels used by this channel provider.

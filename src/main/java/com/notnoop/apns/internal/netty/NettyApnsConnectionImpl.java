@@ -25,6 +25,7 @@ import com.notnoop.apns.internal.netty.cache.CacheStore;
 import com.notnoop.apns.internal.netty.cache.CacheStore.Drainer;
 import com.notnoop.apns.internal.netty.channel.ChannelProvider;
 import com.notnoop.apns.internal.netty.channel.ChannelProvider.ChannelHandlersProvider;
+import com.notnoop.apns.internal.netty.channel.ChannelProvider.WithChannelAction;
 import com.notnoop.apns.internal.netty.encoding.ApnsNotificationEncoder;
 import com.notnoop.apns.internal.netty.encoding.ApnsResultDecoder;
 import com.notnoop.exceptions.ApnsDeliveryErrorException;
@@ -34,6 +35,10 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
         DeliveryResultListener {
     private static final Logger LOGGER = LoggerFactory
             .getLogger(NettyApnsConnectionImpl.class);
+
+    private static final int RETRIES = 3;
+
+    private static final int DELAY_IN_MS = 1000;
 
     private final ApnsDelegate delegate;
     private final ChannelProvider channelProvider;
@@ -91,24 +96,35 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
         sendMessage(m, false);
     }
 
-    protected synchronized void sendMessage(ApnsNotification m,
-            boolean fromBuffer) {
-        Channel channel = channelProvider.getChannel();
-
+    protected synchronized void sendMessage(final ApnsNotification m,
+            final boolean fromBuffer) {
+        int attempts = 0;
         while (true) {
+            attempts++;
             try {
-                cacheStore.add(m);
-                channel.writeAndFlush(m).sync();
-
-                delegate.messageSent(m, fromBuffer);
-                LOGGER.debug("Message \"{}\" sent (fromBuffer={})", m,
-                        fromBuffer);
-                if (!fromBuffer)
-                    drainBuffer();
+                channelProvider.runWithChannel(new WithChannelAction() {
+                    @Override
+                    public void perform(Channel channel) throws Exception {
+                        cacheStore.add(m);
+                        channel.writeAndFlush(m).sync();
+                        delegate.messageSent(m, fromBuffer);
+                        LOGGER.debug("Message \"{}\" sent (fromBuffer={})", m,
+                                fromBuffer);
+                        if (!fromBuffer)
+                            drainBuffer();
+                    }
+                });
                 break;
             } catch (Exception e) {
-                delegate.messageSendFailed(m, e);
-                Utilities.wrapAndThrowAsRuntimeException(e);
+                if (attempts > RETRIES) {
+                    delegate.messageSendFailed(m, e);
+                    Utilities.wrapAndThrowAsRuntimeException(e);
+                }
+                LOGGER.info("Failed to send message " + m + " (fromBuffer="
+                        + fromBuffer + ", attempts=" + attempts
+                        + " trying again after delay... (r", e);
+                Utilities.sleep(DELAY_IN_MS);
+
             }
         }
     }

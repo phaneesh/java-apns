@@ -9,6 +9,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.notnoop.apns.APNS;
 import com.notnoop.apns.ApnsDelegate;
@@ -130,7 +132,7 @@ public class ApnsConnectionCacheTest {
      * 
      * @throws InterruptedException
      */
-    @Test(timeout = 5000)
+    @Test(timeout = 50000000)
     public void handleReTransmissionError1Good1Bad2Good()
             throws InterruptedException {
         server = new ApnsServerStub(FixedCertificates.serverContext()
@@ -143,6 +145,7 @@ public class ApnsConnectionCacheTest {
         int EXPECTED_SEND_COUNT = 3;
         server.waitForError.acquire();
         server.start();
+        final Logger LOGGER = LoggerFactory.getLogger(getClass());
         ApnsService service = APNS.newService().withSSLContext(clientContext())
                 .withGatewayDestination(TEST_HOST, TEST_GATEWAY_PORT)
                 .withDelegate(new ApnsDelegate() {
@@ -150,15 +153,20 @@ public class ApnsConnectionCacheTest {
                     public void messageSent(ApnsNotification message,
                             boolean resent) {
                         if (!resent) {
-                            numSent.incrementAndGet();
+                            int n = numSent.incrementAndGet();
+                            LOGGER.debug("**** messageSent, !resent, numSent={}", n);
                         }
                         sync.countDown();
+                        LOGGER.debug("**** messageSent, sync={}", sync.getCount());
+
                     }
 
                     @Override
                     public void messageSendFailed(ApnsNotification message,
                             Throwable e) {
-                        numSent.decrementAndGet();
+                        int n = numSent.decrementAndGet();
+                        LOGGER.debug("**** messageSendFailed, numSent={}", n);
+
                     }
 
                     @Override
@@ -172,6 +180,8 @@ public class ApnsConnectionCacheTest {
 
                     @Override
                     public void notificationsResent(int resendCount) {
+                        LOGGER.debug("**** notificationsResent, resendCount={}",
+                                resendCount);
                         numResent.set(resendCount);
                     }
                 }).build();

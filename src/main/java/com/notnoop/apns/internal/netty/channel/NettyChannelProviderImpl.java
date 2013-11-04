@@ -42,7 +42,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         bootstrap.channel(NioSocketChannel.class);
         bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
     }
-    
+
     public ChannelFuture getCurrentChannelFuture() {
         return channelFuture;
     }
@@ -64,11 +64,10 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
             try {
                 channelFuture = bootstrap.connect(host, port).sync();
                 reconnectPolicy.reconnected();
+                LOGGER.debug("APNS reconnected");
             } catch (InterruptedException e) {
                 LOGGER.error("Error while connecting", e);
             }
-            reconnectPolicy.reconnected();
-            LOGGER.debug("APNS reconnected");
         }
         return channelFuture.channel();
     }
@@ -85,6 +84,13 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
                 LOGGER.error("Error while closing connection", e);
             }
         }
+    }
+
+    @Override
+    public synchronized void runWithChannel(WithChannelAction action)
+            throws Exception {
+        Channel channel = getChannel();
+        action.perform(channel);
     }
 
     @Override

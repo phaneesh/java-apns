@@ -93,7 +93,7 @@ public class CacheStoreImpl implements CacheStore {
      * .internal.netty.cache.CacheStoreImpl.Drainer)
      */
     @Override
-    public void drain(Drainer drainer) {
+    public synchronized void drain(Drainer drainer) {
         ApnsNotification notification = null;
         while ((notification = notificationsBuffer.poll()) != null) {
             LOGGER.debug("Resending notification {} from buffer",
