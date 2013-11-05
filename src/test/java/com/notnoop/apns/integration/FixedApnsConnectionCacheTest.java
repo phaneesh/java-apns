@@ -51,22 +51,23 @@ public class FixedApnsConnectionCacheTest {
     }
 
     @Test(timeout = 500000)
-    public void test_20_fails_id_10_after_receiving_15() throws InterruptedException {
+    public void test_20_fails_id_10_after_receiving_15()
+            throws InterruptedException {
         ConnectionCacheTest test = new ConnectionCacheTest();
         test.setError(DeliveryError.MISSING_DEVICE_TOKEN);
         test.setExpectedClosedConnections(1);
         test.setExpectedResent(5);
-        test.setExpectedSent(20);
+        test.setExpectedSent(19);
         test.setExpectedTotal(20);
         test.setIdToFail(10);
         test.setFailWhenReceive(15);
         test(test);
-        Thread.sleep(20000);
     }
 
     protected void test(ConnectionCacheTest test) {
         final CountDownLatch sync = new CountDownLatch(test.getExpectedTotal());
-
+        final CountDownLatch syncConnectionClosed = new CountDownLatch(
+                test.getIdToFail() != null ? 1 : 0);
         final AtomicInteger numResent = new AtomicInteger();
         final AtomicInteger numSent = new AtomicInteger();
         final AtomicInteger numConnectionClosed = new AtomicInteger();
@@ -88,6 +89,7 @@ public class FixedApnsConnectionCacheTest {
             @Override
             public void connectionClosed(DeliveryError e, int messageIdentifier) {
                 numConnectionClosed.incrementAndGet();
+                syncConnectionClosed.countDown();
             }
 
             @Override
@@ -106,15 +108,16 @@ public class FixedApnsConnectionCacheTest {
         test.act(service);
 
         try {
+            syncConnectionClosed.await();
             sync.await();
         } catch (InterruptedException e1) {
             throw new RuntimeException(e1);
         }
         service.stop();
-//        Assert.assertEquals(test.getExpectedSent(), numSent.get());
-//        Assert.assertTrue(test.getExpectedResent() <= numResent.get());
-//        Assert.assertEquals(test.getExpectedClosedConnections(),
-//                numConnectionClosed.get());
+        // Assert.assertEquals(test.getExpectedSent(), numSent.get());
+        // Assert.assertTrue(test.getExpectedResent() <= numResent.get());
+        // Assert.assertEquals(test.getExpectedClosedConnections(),
+        // numConnectionClosed.get());
         List<List<Integer>> receivedIds = server.getReceivedNotificationIds();
 
         // Assert.assertEquals(test.getExpectedClosedConnections(),

@@ -194,7 +194,7 @@ public class MockApnsServer {
         @Override
         protected void channelRead0(final ChannelHandlerContext context,
                 ApnsNotification receivedNotification) throws Exception {
-            System.out.println("RECEIVED "+receivedNotification);
+            System.out.println("RECEIVED " + receivedNotification);
             if (!this.rejectFutureMessages) {
                 final DeliveryResult rejection = this.server
                         .handleReceivedNotification(receivedNotification);
@@ -245,6 +245,8 @@ public class MockApnsServer {
                 SSLEngine engine = sslContext.createSSLEngine();
                 engine.setUseClientMode(false);
                 channel.pipeline().addLast("ssl", new SslHandler(engine));
+                // channel.pipeline().addLast("log", new
+                // LoggingHandler(LogLevel.INFO));
                 channel.pipeline().addLast("encoder", new ApnsErrorEncoder());
                 channel.pipeline().addLast("decoder",
                         new ApnsPushNotificationDecoder());
@@ -280,7 +282,6 @@ public class MockApnsServer {
 
     protected DeliveryResult handleReceivedNotification(
             final ApnsNotification receivedNotification) {
-
         addReceivedNotification(receivedNotification);
 
         for (final CountDownLatch latch : this.countdownLatches) {
@@ -290,6 +291,8 @@ public class MockApnsServer {
             if (failWhenReceive != null
                     && failWhenReceive == receivedNotification.getIdentifier()) {
                 DeliveryResult result = new DeliveryResult(errorCode, idToFail);
+                System.err.println("Causing failure...");
+
                 errorCode = null;
                 failWhenReceive = null;
                 idToFail = null;

@@ -86,8 +86,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
         LOGGER.debug("Closing netty APNS connection");
         LOGGER.debug("Issuing drainBuffer request...");
         drainBuffer();
-        LOGGER.debug("1st close of channel...");
-        channelProvider.close();
+        // LOGGER.debug("1st close of channel...");
+        // channelProvider.close();
         LOGGER.debug("Shutdown of single-thread executor service...");
         executorService.shutdown();
         try {
