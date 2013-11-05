@@ -194,7 +194,7 @@ public class MockApnsServer {
         @Override
         protected void channelRead0(final ChannelHandlerContext context,
                 ApnsNotification receivedNotification) throws Exception {
-
+            System.out.println("RECEIVED "+receivedNotification);
             if (!this.rejectFutureMessages) {
                 final DeliveryResult rejection = this.server
                         .handleReceivedNotification(receivedNotification);
@@ -209,6 +209,7 @@ public class MockApnsServer {
                                 @Override
                                 public void operationComplete(
                                         final ChannelFuture future) {
+                                    setupNextNotificationsList();
                                     context.close();
                                 }
 

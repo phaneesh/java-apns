@@ -37,8 +37,7 @@ public class MockChannelProvider extends AbstractChannelProvider {
     }
 
     @Override
-    public synchronized void runWithChannel(WithChannelAction action)
-            throws Exception {
+    public synchronized void runWithChannel(WithChannelAction action) {
         Channel channel = getChannel();
         action.perform(channel);
     }

@@ -70,4 +70,6 @@ public interface CacheStore {
 
     int getCacheLength();
 
+    void addToBuffer(ApnsNotification m);
+
 }

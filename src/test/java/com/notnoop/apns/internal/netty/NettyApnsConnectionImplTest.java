@@ -5,6 +5,8 @@ import static org.mockito.Matchers.*;
 import static org.mockito.Mockito.*;
 import io.netty.buffer.ByteBuf;
 
+import java.io.IOException;
+
 import org.junit.Test;
 
 import com.notnoop.apns.ApnsDelegate;
@@ -22,7 +24,7 @@ public class NettyApnsConnectionImplTest {
     private static final int N = 100;
 
     @Test
-    public void testSendMessages() {
+    public void testSendMessages() throws IOException {
         EnhancedApnsNotification[] notifications = new EnhancedApnsNotification[N];
         for (int i = 0; i < N; i++) {
             notifications[i] = new EnhancedApnsNotification(i, 10,
@@ -33,14 +35,14 @@ public class NettyApnsConnectionImplTest {
         MockChannelProvider channelProvider = mockChannelProvider();
 
         NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(
-                channelProvider, mock(ApnsDelegate.class), new CacheStoreImpl(200,
-                        true));
+                channelProvider, mock(ApnsDelegate.class), new CacheStoreImpl(
+                        200, true));
         conn.init();
 
         for (int i = 0; i < N; i++) {
-            conn.sendMessage(notifications[i], false);
+            conn.sendMessage(notifications[i], false, 0);
         }
-
+        conn.close();
         assertEquals(N, channelProvider.getCurrentChannel().outboundMessages()
                 .size());
 
@@ -60,7 +62,8 @@ public class NettyApnsConnectionImplTest {
 
     @SuppressWarnings("resource")
     @Test
-    public void testSendMessages_failure_at_70() throws InterruptedException {
+    public void testSendMessages_failure_at_70() throws InterruptedException,
+            IOException {
         int failAt = 70;
         DeliveryError failure = DeliveryError.MISSING_DEVICE_TOKEN;
         EnhancedApnsNotification[] notifications = new EnhancedApnsNotification[N];
@@ -82,8 +85,9 @@ public class NettyApnsConnectionImplTest {
         conn.init();
 
         for (int i = 0; i < N; i++) {
-            conn.sendMessage(notifications[i], false);
+            conn.sendMessage(notifications[i], false, 0);
         }
+        conn.close();
         // Verify an error was sent...
         verify(conn).onDeliveryResult(eq(new DeliveryResult(failure, failAt)));
         // Verify there have been two channels in mock provider...

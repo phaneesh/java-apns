@@ -142,4 +142,9 @@ public class CacheStoreImpl implements CacheStore {
         return cacheLength;
     }
 
+    @Override
+    public void addToBuffer(ApnsNotification m) {
+        notificationsBuffer.add(m);
+    }
+
 }

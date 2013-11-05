@@ -14,6 +14,8 @@ import io.netty.handler.ssl.SslHandler;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -29,8 +31,9 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
     private final String host;
 
     private final int port;
-
+    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final AtomicReference<ChannelFuture> channelFutureReference = new AtomicReference<>();
+    private final EventLoopGroup eventLoopGroup;
 
     public NettyChannelProviderImpl(EventLoopGroup eventLoopGroup,
             ReconnectPolicy reconnectPolicy, String host, int port,
@@ -39,6 +42,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         this.host = host;
         this.port = port;
         this.sslContext = sslContext;
+        this.eventLoopGroup = eventLoopGroup;
         bootstrap = new Bootstrap();
         bootstrap.group(eventLoopGroup);
         bootstrap.channel(NioSocketChannel.class);
@@ -51,7 +55,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
 
     // @Override
     public Channel getChannel() {
-        final ChannelFuture channelFuture = channelFutureReference.get();
+        ChannelFuture channelFuture = channelFutureReference.get();
         // Start the client.
         // channelFuture = bootstrap.connect(host, port).sync().ch
         if (reconnectPolicy.shouldReconnect() && channelFuture != null) {
@@ -63,8 +67,8 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         }
         if (channelFuture == null || !channelFuture.channel().isActive()) {
             try {
-                channelFutureReference.getAndSet(bootstrap.connect(host, port)
-                        .sync());
+                channelFuture = bootstrap.connect(host, port).sync();
+                channelFutureReference.set(channelFuture);
                 reconnectPolicy.reconnected();
                 LOGGER.debug("APNS reconnected");
             } catch (InterruptedException e) {
@@ -81,13 +85,18 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         Channel channel = null;
         if (channelFuture != null
                 && (channel = channelFuture.channel()) != null) {
-            channel.close();
+            try {
+                LOGGER.debug("Sync-closing channel...");
+                channel.close().sync();
+                LOGGER.debug("Channel closed");
+            } catch (InterruptedException e) {
+                LOGGER.error("Error while closing", e);
+            }
         }
     }
 
     @Override
-    public synchronized void runWithChannel(WithChannelAction action)
-            throws Exception {
+    public void runWithChannel(WithChannelAction action) {
         Channel channel = getChannel();
         action.perform(channel);
     }
