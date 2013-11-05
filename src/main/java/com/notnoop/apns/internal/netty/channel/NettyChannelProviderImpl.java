@@ -74,13 +74,17 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
     }
 
     @Override
-    public synchronized void close() throws IOException {
+    public void close() throws IOException {
+        final ChannelFuture channelFuture;
+        synchronized (this) {
+            channelFuture = this.channelFuture;
+            this.channelFuture = null;
+        }
         Channel channel = null;
         if (channelFuture != null
                 && (channel = channelFuture.channel()) != null) {
             try {
                 channel.close().sync();
-                channelFuture = null;
             } catch (InterruptedException e) {
                 LOGGER.error("Error while closing connection", e);
             }
