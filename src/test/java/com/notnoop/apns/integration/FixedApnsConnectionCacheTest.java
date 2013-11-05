@@ -2,6 +2,7 @@ package com.notnoop.apns.integration;
 
 import static com.notnoop.apns.utils.FixedCertificates.*;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -16,26 +17,12 @@ import com.notnoop.apns.ApnsNotification;
 import com.notnoop.apns.ApnsService;
 import com.notnoop.apns.DeliveryError;
 import com.notnoop.apns.EnhancedApnsNotification;
-import com.notnoop.apns.SimpleApnsNotification;
 import com.notnoop.apns.internal.netty.util.MockApnsServer;
 import com.notnoop.apns.utils.FixedCertificates;
 
 public class FixedApnsConnectionCacheTest {
 
     MockApnsServer server;
-    static SimpleApnsNotification msg1 = new SimpleApnsNotification(
-            "a87d8878d878a79", "{\"aps\":{}}");
-    static SimpleApnsNotification msg2 = new SimpleApnsNotification(
-            "a87d8878d878a88", "{\"aps\":{}}");
-    static EnhancedApnsNotification eMsg1 = new EnhancedApnsNotification(
-            EnhancedApnsNotification.INCREMENT_ID(), 1, "a87d8878d878a88",
-            "{\"aps\":{}}");
-    static EnhancedApnsNotification eMsg2 = new EnhancedApnsNotification(
-            EnhancedApnsNotification.INCREMENT_ID(), 1, "a87d8878d878a88",
-            "{\"aps\":{}}");
-    static EnhancedApnsNotification eMsg3 = new EnhancedApnsNotification(
-            EnhancedApnsNotification.INCREMENT_ID(), 1, "a87d8878d878a88",
-            "{\"aps\":{}}");
 
     @Before
     public void startup() throws InterruptedException {
@@ -50,70 +37,183 @@ public class FixedApnsConnectionCacheTest {
         server = null;
     }
 
-    /**
-     * Test1 to make sure that after rejected notification in-flight
-     * notifications are re-transmitted
-     * 
-     * @throws InterruptedException
-     */
-    @Test(timeout = 50000000)
-    public void handleReTransmissionError5Good1Bad7Good()
-            throws InterruptedException {
+    @Test(timeout = 5000)
+    public void test_send_50_no_failure() {
+        ConnectionCacheTest test = new ConnectionCacheTest();
+        test.setError(DeliveryError.MISSING_DEVICE_TOKEN);
+        test.setExpectedClosedConnections(0);
+        test.setExpectedResent(0);
+        test.setExpectedSent(50);
+        test.setExpectedTotal(50);
+        test.setIdToFail(null);
+        test.setFailWhenReceive(null);
+        test(test);
+    }
 
-        // 5 success 1 fail 7 success 7 resent
-        final CountDownLatch sync = new CountDownLatch(20);
+    @Test(timeout = 500000)
+    public void test_20_fails_id_10_after_receiving_15() {
+        ConnectionCacheTest test = new ConnectionCacheTest();
+        test.setError(DeliveryError.MISSING_DEVICE_TOKEN);
+        test.setExpectedClosedConnections(1);
+        test.setExpectedResent(5);
+        test.setExpectedSent(19);
+        test.setExpectedTotal(20);
+        test.setIdToFail(10);
+        test.setFailWhenReceive(15);
+        test(test);
+    }
+
+    protected void test(ConnectionCacheTest test) {
+        final CountDownLatch sync = new CountDownLatch(test.getExpectedTotal());
+
         final AtomicInteger numResent = new AtomicInteger();
         final AtomicInteger numSent = new AtomicInteger();
-        int EXPECTED_RESEND_COUNT = 7;
-        int EXPECTED_SEND_COUNT = 12;
-        ApnsService service = APNS.newService().withSSLContext(clientContext())
+        final AtomicInteger numConnectionClosed = new AtomicInteger();
+
+        ApnsService service = buildApnsService(new ApnsDelegate() {
+            @Override
+            public void messageSent(ApnsNotification message, boolean resent) {
+                if (!resent) {
+                    numSent.incrementAndGet();
+                }
+                sync.countDown();
+            }
+
+            @Override
+            public void messageSendFailed(ApnsNotification message, Throwable e) {
+                numSent.decrementAndGet();
+            }
+
+            @Override
+            public void connectionClosed(DeliveryError e, int messageIdentifier) {
+                numConnectionClosed.incrementAndGet();
+            }
+
+            @Override
+            public void cacheLengthExceeded(int newCacheLength) {
+            }
+
+            @Override
+            public void notificationsResent(int resendCount) {
+                numResent.set(resendCount);
+            }
+        });
+        if (test.getIdToFail() != null && test.getFailWhenReceive() != null)
+            server.fail(DeliveryError.MISSING_DEVICE_TOKEN, test.getIdToFail(),
+                    test.getFailWhenReceive());
+
+        test.act(service);
+
+        try {
+            sync.await();
+        } catch (InterruptedException e1) {
+            throw new RuntimeException(e1);
+        }
+
+        Assert.assertEquals(test.getExpectedSent(), numSent.get());
+        Assert.assertEquals(test.getExpectedResent(), numResent.get());
+        Assert.assertEquals(test.getExpectedClosedConnections(),
+                numConnectionClosed.get());
+        List<List<Integer>> receivedIds = server.getReceivedNotificationIds();
+
+        Assert.assertEquals(test.getExpectedClosedConnections(),
+                receivedIds.size() - 1);
+
+        if (test.getIdToFail() != null && test.getFailWhenReceive() != null) {
+            for (int i = 0; i <= test.getFailWhenReceive(); i++) {
+                Assert.assertTrue(receivedIds.get(0).contains(i));
+            }
+            for (int i = test.getIdToFail(); i < test.getExpectedTotal(); i++) {
+                Assert.assertTrue(receivedIds.get(1).contains(i));
+            }
+        }
+    }
+
+    private ApnsService buildApnsService(ApnsDelegate apnsDelegate) {
+        return APNS.newService().withSSLContext(clientContext())
                 .withGatewayDestination(TEST_HOST, TEST_GATEWAY_PORT)
-                .withDelegate(new ApnsDelegate() {
-                    @Override
-                    public void messageSent(ApnsNotification message,
-                            boolean resent) {
-                        if (!resent) {
-                            numSent.incrementAndGet();
-                        }
-                        sync.countDown();
-                    }
+                .withDelegate(apnsDelegate).build();
+    }
 
-                    @Override
-                    public void messageSendFailed(ApnsNotification message,
-                            Throwable e) {
-                        numSent.decrementAndGet();
-                    }
+    public static class ConnectionCacheTest {
+        static EnhancedApnsNotification[] MESSAGES = new EnhancedApnsNotification[100];
 
-                    @Override
-                    public void connectionClosed(DeliveryError e,
-                            int messageIdentifier) {
-                    }
-
-                    @Override
-                    public void cacheLengthExceeded(int newCacheLength) {
-                    }
-
-                    @Override
-                    public void notificationsResent(int resendCount) {
-                        numResent.set(resendCount);
-                    }
-                }).build();
-        server.failWithErrorAfterNotifications(DeliveryError.ofCode(8), 6, null);
-        for (int i = 0; i < 5; ++i) {
-            service.push(eMsg1);
+        static {
+            for (int i = 0; i < MESSAGES.length; i++) {
+                MESSAGES[i] = new EnhancedApnsNotification(i, 1,
+                        "a87d8878d878a88", "{\"aps\":{}}");
+            }
         }
 
-        service.push(eMsg2);
+        private DeliveryError error;
+        private int expectedClosedConnections;
+        private int expectedTotal;
+        private int expectedSent;
+        private int expectedResent;
+        private Integer idToFail;
+        private Integer failWhenReceive;
 
-        for (int i = 0; i < 7; ++i) {
-            service.push(eMsg3);
+        public DeliveryError getError() {
+            return error;
         }
 
-        sync.await();
+        public void setError(DeliveryError error) {
+            this.error = error;
+        }
 
-        Assert.assertEquals(EXPECTED_RESEND_COUNT, numResent.get());
-        Assert.assertEquals(EXPECTED_SEND_COUNT, numSent.get());
+        public int getExpectedClosedConnections() {
+            return expectedClosedConnections;
+        }
 
-        service.stop();
+        public void setExpectedClosedConnections(int expectedClosedConnections) {
+            this.expectedClosedConnections = expectedClosedConnections;
+        }
+
+        public int getExpectedTotal() {
+            return expectedTotal;
+        }
+
+        public void setExpectedTotal(int expectedTotal) {
+            this.expectedTotal = expectedTotal;
+        }
+
+        public int getExpectedSent() {
+            return expectedSent;
+        }
+
+        public void setExpectedSent(int expectedSent) {
+            this.expectedSent = expectedSent;
+        }
+
+        public int getExpectedResent() {
+            return expectedResent;
+        }
+
+        public void setExpectedResent(int expectedResent) {
+            this.expectedResent = expectedResent;
+        }
+
+        public Integer getIdToFail() {
+            return idToFail;
+        }
+
+        public void setIdToFail(Integer idToFail) {
+            this.idToFail = idToFail;
+        }
+
+        public Integer getFailWhenReceive() {
+            return failWhenReceive;
+        }
+
+        public void setFailWhenReceive(Integer failWhenReceive) {
+            this.failWhenReceive = failWhenReceive;
+        }
+
+        public void act(ApnsService apnsService) {
+            for (int i = 0; i < expectedTotal; i++) {
+                apnsService.push(MESSAGES[i]);
+            }
+        }
+
     }
 }

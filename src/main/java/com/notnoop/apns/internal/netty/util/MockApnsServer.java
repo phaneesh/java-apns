@@ -20,7 +20,9 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Vector;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -36,12 +38,12 @@ public class MockApnsServer {
     private EventLoopGroup workerGroup;
 
     private final int port;
-
-    private final Vector<ApnsNotification> receivedNotifications;
+    private final AtomicInteger currentNotificationList = new AtomicInteger(-1);
+    private final List<List<ApnsNotification>> receivedNotifications = new CopyOnWriteArrayList<>();
     private final Vector<CountDownLatch> countdownLatches;
 
-    private Integer failureId = null;
-    private int failWithErrorCount = -1;
+    private Integer idToFail = null;
+    private Integer failWhenReceive = null;
     private DeliveryError errorCode;
     private SSLContext sslContext;
 
@@ -219,8 +221,8 @@ public class MockApnsServer {
     public MockApnsServer(final int port, final SSLContext sslContext) {
         this.port = port;
         this.sslContext = sslContext;
-        this.receivedNotifications = new Vector<ApnsNotification>();
         this.countdownLatches = new Vector<CountDownLatch>();
+        setupNextNotificationsList();
     }
 
     public void start() throws InterruptedException {
@@ -261,35 +263,67 @@ public class MockApnsServer {
         this.bossGroup.shutdownGracefully();
     }
 
-    public void failWithErrorAfterNotifications(final DeliveryError errorCode,
-            final int notificationCount, final Integer failureId) {
-        this.failWithErrorCount = notificationCount;
+    /**
+     * This makes the server send a failure immediately after receiving a
+     * notification with ID failWhenReceive
+     * 
+     * @param errorCode
+     * @param idToFail
+     */
+    public synchronized void fail(final DeliveryError errorCode,
+            final int idToFail, final int failWhenReceive) {
         this.errorCode = errorCode;
-        this.failureId = failureId;
+        this.idToFail = idToFail;
+        this.failWhenReceive = failWhenReceive;
     }
 
     protected DeliveryResult handleReceivedNotification(
             final ApnsNotification receivedNotification) {
 
-        this.receivedNotifications.add(receivedNotification);
-        final int notificationCount = this.receivedNotifications.size();
+        addReceivedNotification(receivedNotification);
 
         for (final CountDownLatch latch : this.countdownLatches) {
             latch.countDown();
         }
-
-        if (notificationCount == this.failWithErrorCount) {
-            // If we want a specific ID to fail, we set failureId. Otherwise, the current will be used.
-            return new DeliveryResult(this.errorCode,
-                    failureId == null ? receivedNotification.getIdentifier()
-                            : failureId);
-        } else {
-            return null;
+        synchronized (this) {
+            if (failWhenReceive != null
+                    && failWhenReceive == receivedNotification.getIdentifier()) {
+                DeliveryResult result = new DeliveryResult(errorCode, idToFail);
+                errorCode = null;
+                failWhenReceive = null;
+                idToFail = null;
+                return result;
+            } else
+                return null;
         }
     }
 
-    public List<ApnsNotification> getReceivedNotifications() {
-        return new ArrayList<ApnsNotification>(this.receivedNotifications);
+    private synchronized void setupNextNotificationsList() {
+        receivedNotifications.add(new CopyOnWriteArrayList<ApnsNotification>());
+        int n = currentNotificationList.incrementAndGet();
+        assert (n == receivedNotifications.size() - 1);
+    }
+
+    private synchronized void addReceivedNotification(
+            ApnsNotification receivedNotification) {
+        receivedNotifications.get(currentNotificationList.get()).add(
+                receivedNotification);
+    }
+
+    public synchronized List<List<ApnsNotification>> getReceivedNotifications() {
+        return new ArrayList<>(this.receivedNotifications);
+    }
+
+    public synchronized List<List<Integer>> getReceivedNotificationIds() {
+        List<List<Integer>> result = new ArrayList<>();
+        for (List<ApnsNotification> connection : receivedNotifications) {
+            List<Integer> ids = new ArrayList<>();
+            for (ApnsNotification n : connection) {
+                ids.add(n.getIdentifier());
+            }
+            result.add(ids);
+        }
+        return result;
     }
 
     public CountDownLatch getCountDownLatch(final int notificationCount) {
