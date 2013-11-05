@@ -93,12 +93,11 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     }
 
     @Override
-    public synchronized void sendMessage(ApnsNotification m)
-            throws NetworkIOException {
+    public void sendMessage(ApnsNotification m) throws NetworkIOException {
         sendMessage(m, false);
     }
 
-    protected synchronized void sendMessage(final ApnsNotification m,
+    protected void sendMessage(final ApnsNotification m,
             final boolean fromBuffer) {
         int attempts = 0;
         while (true) {

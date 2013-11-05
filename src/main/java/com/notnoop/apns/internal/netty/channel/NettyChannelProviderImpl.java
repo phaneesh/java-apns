@@ -13,6 +13,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.ssl.SslHandler;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -29,7 +30,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
 
     private final int port;
 
-    private volatile ChannelFuture channelFuture;
+    private final AtomicReference<ChannelFuture> channelFutureReference = new AtomicReference<>();
 
     public NettyChannelProviderImpl(EventLoopGroup eventLoopGroup,
             ReconnectPolicy reconnectPolicy, String host, int port,
@@ -45,25 +46,25 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
     }
 
     public ChannelFuture getCurrentChannelFuture() {
-        return channelFuture;
+        return channelFutureReference.get();
     }
 
     // @Override
     public Channel getChannel() {
+        final ChannelFuture channelFuture = channelFutureReference.get();
         // Start the client.
         // channelFuture = bootstrap.connect(host, port).sync().ch
         if (reconnectPolicy.shouldReconnect() && channelFuture != null) {
             try {
-                channelFuture.channel().close().sync();
+                close();
             } catch (Throwable t) {
                 LOGGER.error("Error while closing connection", t);
-            } finally {
-                channelFuture = null;
             }
         }
         if (channelFuture == null || !channelFuture.channel().isActive()) {
             try {
-                channelFuture = bootstrap.connect(host, port).sync();
+                channelFutureReference.getAndSet(bootstrap.connect(host, port)
+                        .sync());
                 reconnectPolicy.reconnected();
                 LOGGER.debug("APNS reconnected");
             } catch (InterruptedException e) {
@@ -75,11 +76,8 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
 
     @Override
     public void close() throws IOException {
-        final ChannelFuture channelFuture;
-        synchronized (this) {
-            channelFuture = this.channelFuture;
-            this.channelFuture = null;
-        }
+        final ChannelFuture channelFuture = channelFutureReference
+                .getAndSet(null);
         Channel channel = null;
         if (channelFuture != null
                 && (channel = channelFuture.channel()) != null) {
