@@ -48,6 +48,13 @@ public interface ChannelProvider {
             ChannelHandlersProvider channelHandlersProvider);
 
     /**
+     * Channel closed listener
+     * 
+     * @param listener
+     */
+    void setChannelClosedListener(ChannelClosedListener listener);
+
+    /**
      * Initialize this channel provider. Like above - it's code smell, to be
      * removed if possible in the future.
      */
@@ -55,5 +62,11 @@ public interface ChannelProvider {
 
     public static interface ChannelHandlersProvider {
         List<ChannelHandler> getChannelHandlers();
+    }
+
+    public interface ChannelClosedListener {
+
+        void onChannelClosed(Channel ch);
+
     }
 }

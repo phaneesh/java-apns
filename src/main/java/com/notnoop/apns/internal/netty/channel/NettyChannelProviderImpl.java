@@ -3,6 +3,7 @@ package com.notnoop.apns.internal.netty.channel;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -97,7 +98,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
     public void init() {
         bootstrap.handler(new ChannelInitializer<SocketChannel>() {
             @Override
-            protected void initChannel(SocketChannel ch) throws Exception {
+            protected void initChannel(final SocketChannel ch) throws Exception {
                 SSLEngine engine = sslContext.createSSLEngine();
                 engine.setUseClientMode(true);
                 ch.pipeline().addFirst("ssl", new SslHandler(engine));
@@ -105,6 +106,14 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
                         .getChannelHandlersProvider().getChannelHandlers()) {
                     ch.pipeline().addLast(h);
                 }
+                ch.closeFuture().addListener(new ChannelFutureListener() {
+
+                    @Override
+                    public void operationComplete(ChannelFuture future)
+                            throws Exception {
+                        getChannelClosedListener().onChannelClosed(ch);
+                    }
+                });
             }
         });
     }

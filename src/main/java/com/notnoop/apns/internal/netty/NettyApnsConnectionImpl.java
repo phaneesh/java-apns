@@ -24,6 +24,7 @@ import com.notnoop.apns.internal.Utilities;
 import com.notnoop.apns.internal.netty.cache.CacheStore;
 import com.notnoop.apns.internal.netty.cache.CacheStore.Drainer;
 import com.notnoop.apns.internal.netty.channel.ChannelProvider;
+import com.notnoop.apns.internal.netty.channel.ChannelProvider.ChannelClosedListener;
 import com.notnoop.apns.internal.netty.channel.ChannelProvider.ChannelHandlersProvider;
 import com.notnoop.apns.internal.netty.channel.ChannelProvider.WithChannelAction;
 import com.notnoop.apns.internal.netty.encoding.ApnsNotificationEncoder;
@@ -32,7 +33,7 @@ import com.notnoop.exceptions.ApnsDeliveryErrorException;
 import com.notnoop.exceptions.NetworkIOException;
 
 public class NettyApnsConnectionImpl implements ApnsConnection,
-        DeliveryResultListener {
+        DeliveryResultListener, ChannelClosedListener {
     private static final Logger LOGGER = LoggerFactory
             .getLogger(NettyApnsConnectionImpl.class);
 
@@ -80,12 +81,13 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                                         NettyApnsConnectionImpl.this));
                     }
                 });
-
+        channelProvider.setChannelClosedListener(this);
         channelProvider.init();
     }
 
     @Override
     public synchronized void close() throws IOException {
+        LOGGER.debug("Closing netty APNS connection");
         executorService.shutdown();
         channelProvider.close();
     }
@@ -124,12 +126,12 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                         + fromBuffer + ", attempts=" + attempts
                         + " trying again after delay... (r", e);
                 Utilities.sleep(DELAY_IN_MS);
-
             }
         }
     }
 
     private void drainBuffer() {
+        LOGGER.debug("Draining buffer of notifications that need to be resent");
         cacheStore.drain(new Drainer() {
             @Override
             public void process(ApnsNotification notification) {
@@ -139,51 +141,51 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     }
 
     @Override
+    public void onChannelClosed(Channel ch) {
+        LOGGER.debug("Channel was closed");
+        drainBuffer();
+    }
+
+    @Override
     public void onDeliveryResult(final DeliveryResult msg) {
-        executorService.submit(new Runnable() {
-            @Override
-            public void run() {
-                synchronized (cacheStore) {
-                    Integer newCacheLength = null;
-                    try {
-                        Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
-                        ApnsNotification notification = cacheStore
-                                .removeAllBefore(msg, tempCache);
+        // executorService.submit(new Runnable() {
+        // @Override
+        // public void run() {
+        synchronized (cacheStore) {
+            Integer newCacheLength = null;
+            try {
+                Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
+                ApnsNotification notification = cacheStore.removeAllBefore(msg,
+                        tempCache);
 
-                        if (notification != null) {
-                            delegate.messageSendFailed(
-                                    notification,
-                                    new ApnsDeliveryErrorException(msg
-                                            .getError()));
-                        } else {
-                            LOGGER.warn("Received error for message that wasn't in the cache...");
-                            cacheStore.addAll(tempCache);
-                            newCacheLength = cacheStore
-                                    .resizeCacheIfNeeded(tempCache.size());
+                if (notification != null) {
+                    delegate.messageSendFailed(notification,
+                            new ApnsDeliveryErrorException(msg.getError()));
+                } else {
+                    LOGGER.warn("Received error for message that wasn't in the cache...");
+                    cacheStore.addAll(tempCache);
+                    newCacheLength = cacheStore.resizeCacheIfNeeded(tempCache
+                            .size());
 
-                            delegate.messageSendFailed(
-                                    null,
-                                    new ApnsDeliveryErrorException(msg
-                                            .getError()));
-                        }
+                    delegate.messageSendFailed(null,
+                            new ApnsDeliveryErrorException(msg.getError()));
+                }
 
-                        delegate.notificationsResent(cacheStore
-                                .moveCacheToBuffer());
-                        delegate.connectionClosed(msg.getError(), msg.getId());
-                    } finally {
-                        try {
-                            channelProvider.close();
-                            drainBuffer();
-                            if (newCacheLength != null) {
-                                delegate.cacheLengthExceeded(newCacheLength);
-                            }
-                        } catch (IOException e) {
-                            LOGGER.error("I/O Exception while closing", e);
-                        }
+                delegate.notificationsResent(cacheStore.moveCacheToBuffer());
+                delegate.connectionClosed(msg.getError(), msg.getId());
+            } finally {
+                try {
+                    channelProvider.close();
+                    if (newCacheLength != null) {
+                        delegate.cacheLengthExceeded(newCacheLength);
                     }
+                } catch (IOException e) {
+                    LOGGER.error("I/O Exception while closing", e);
                 }
             }
-        });
+        }
+        // }
+        // });
 
     }
 

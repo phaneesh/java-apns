@@ -9,6 +9,8 @@ public abstract class AbstractChannelProvider implements ChannelProvider {
 
     private ChannelHandlersProvider channelHandlersProvider;
 
+    private ChannelClosedListener channelClosedListener;
+
     @Override
     public void setChannelHandlersProvider(
             ChannelHandlersProvider channelHandlersProvider) {
@@ -17,6 +19,16 @@ public abstract class AbstractChannelProvider implements ChannelProvider {
 
     public ChannelHandlersProvider getChannelHandlersProvider() {
         return channelHandlersProvider;
+    }
+
+    public ChannelClosedListener getChannelClosedListener() {
+        return channelClosedListener;
+    }
+
+    @Override
+    public void setChannelClosedListener(
+            ChannelClosedListener channelClosedListener) {
+        this.channelClosedListener = channelClosedListener;
     }
 
 }
