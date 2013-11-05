@@ -47,8 +47,8 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         return channelFuture;
     }
 
-    @Override
-    public synchronized Channel getChannel() {
+    // @Override
+    public Channel getChannel() {
         // Start the client.
         // channelFuture = bootstrap.connect(host, port).sync().ch
         if (reconnectPolicy.shouldReconnect() && channelFuture != null) {

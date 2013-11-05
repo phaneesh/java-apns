@@ -8,7 +8,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 import com.notnoop.apns.DeliveryError;
-import com.notnoop.apns.internal.netty.channel.AbstractChannelProvider;
 
 public class MockChannelProvider extends AbstractChannelProvider {
     private final List<MockChannel> mockChannels = new LinkedList<MockChannel>();
@@ -16,8 +15,7 @@ public class MockChannelProvider extends AbstractChannelProvider {
     private int failureAt = Integer.MIN_VALUE;
     private DeliveryError errorCode = DeliveryError.INVALID_TOKEN;
 
-    @Override
-    public synchronized Channel getChannel() {
+    public Channel getChannel() {
         if (currentChannel == null || !currentChannel.isOpen()) {
             LOGGER.info("Opening a new channel, failure will be at {}",
                     failureAt);

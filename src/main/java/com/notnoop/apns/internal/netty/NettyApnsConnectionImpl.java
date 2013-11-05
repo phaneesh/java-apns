@@ -139,46 +139,47 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     }
 
     @Override
-    public synchronized void onDeliveryResult(final DeliveryResult msg) {
-        try {
-            channelProvider.close();
-        } catch (IOException e1) {
-            LOGGER.error("Error while trying to close connection");
-        }
+    public void onDeliveryResult(final DeliveryResult msg) {
         executorService.submit(new Runnable() {
-
             @Override
             public void run() {
-                Integer newCacheLength = null;
-                try {
-                    Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
-                    ApnsNotification notification = cacheStore.removeAllBefore(
-                            msg, tempCache);
-
-                    if (notification != null) {
-                        delegate.messageSendFailed(notification,
-                                new ApnsDeliveryErrorException(msg.getError()));
-                    } else {
-                        LOGGER.warn("Received error for message that wasn't in the cache...");
-                        cacheStore.addAll(tempCache);
-                        newCacheLength = cacheStore
-                                .resizeCacheIfNeeded(tempCache.size());
-
-                        delegate.messageSendFailed(null,
-                                new ApnsDeliveryErrorException(msg.getError()));
-                    }
-
-                    delegate.notificationsResent(cacheStore.moveCacheToBuffer());
-                    delegate.connectionClosed(msg.getError(), msg.getId());
-                } finally {
+                synchronized (cacheStore) {
+                    Integer newCacheLength = null;
                     try {
-                        channelProvider.close();
-                        drainBuffer();
-                        if (newCacheLength != null) {
-                            delegate.cacheLengthExceeded(newCacheLength);
+                        Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
+                        ApnsNotification notification = cacheStore
+                                .removeAllBefore(msg, tempCache);
+
+                        if (notification != null) {
+                            delegate.messageSendFailed(
+                                    notification,
+                                    new ApnsDeliveryErrorException(msg
+                                            .getError()));
+                        } else {
+                            LOGGER.warn("Received error for message that wasn't in the cache...");
+                            cacheStore.addAll(tempCache);
+                            newCacheLength = cacheStore
+                                    .resizeCacheIfNeeded(tempCache.size());
+
+                            delegate.messageSendFailed(
+                                    null,
+                                    new ApnsDeliveryErrorException(msg
+                                            .getError()));
                         }
-                    } catch (IOException e) {
-                        LOGGER.error("I/O Exception while closing", e);
+
+                        delegate.notificationsResent(cacheStore
+                                .moveCacheToBuffer());
+                        delegate.connectionClosed(msg.getError(), msg.getId());
+                    } finally {
+                        try {
+                            channelProvider.close();
+                            drainBuffer();
+                            if (newCacheLength != null) {
+                                delegate.cacheLengthExceeded(newCacheLength);
+                            }
+                        } catch (IOException e) {
+                            LOGGER.error("I/O Exception while closing", e);
+                        }
                     }
                 }
             }

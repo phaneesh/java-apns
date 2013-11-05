@@ -19,7 +19,7 @@ public interface ChannelProvider {
      * 
      * @return
      */
-    Channel getChannel();
+    // Channel getChannel();
 
     /**
      * closes current channel.
