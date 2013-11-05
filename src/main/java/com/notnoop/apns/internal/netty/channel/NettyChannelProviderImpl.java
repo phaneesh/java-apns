@@ -83,11 +83,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         Channel channel = null;
         if (channelFuture != null
                 && (channel = channelFuture.channel()) != null) {
-            try {
-                channel.close().sync();
-            } catch (InterruptedException e) {
-                LOGGER.error("Error while closing connection", e);
-            }
+            channel.close();
         }
     }
 
