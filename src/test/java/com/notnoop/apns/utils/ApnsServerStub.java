@@ -1,28 +1,33 @@
 package com.notnoop.apns.utils;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import javax.net.ServerSocketFactory;
 
 public class ApnsServerStub {
 
-    public static ApnsServerStub prepareAndStartServer(int gatePort, int feedPort) {
-        ApnsServerStub server = new ApnsServerStub(
-                FixedCertificates.serverContext().getServerSocketFactory(),
-                gatePort, feedPort);
+    public static ApnsServerStub prepareAndStartServer(int gatePort,
+            int feedPort) {
+        ApnsServerStub server = new ApnsServerStub(FixedCertificates
+                .serverContext().getServerSocketFactory(), gatePort, feedPort);
         server.start();
         return server;
     }
+
     public final AtomicInteger toWaitBeforeSend = new AtomicInteger(0);
     public final ByteArrayOutputStream received;
     public final ByteArrayOutputStream toSend;
     public final Semaphore messages = new Semaphore(0);
+    public final AtomicBoolean stopped = new AtomicBoolean(false);
     private final Semaphore startUp = new Semaphore(0);
     private final Semaphore gatewayOutLock = new Semaphore(0);
     public final Semaphore waitForError = new Semaphore(1);
@@ -30,8 +35,8 @@ public class ApnsServerStub {
     private final int gatewayPort, feedbackPort;
     private OutputStream gatewayOutputStream = null;
 
-    public ApnsServerStub(ServerSocketFactory sslFactory,
-            int gatewayPort, int feedbackPort) {
+    public ApnsServerStub(ServerSocketFactory sslFactory, int gatewayPort,
+            int feedbackPort) {
         this.sslFactory = sslFactory;
         this.gatewayPort = gatewayPort;
         this.feedbackPort = feedbackPort;
@@ -39,6 +44,7 @@ public class ApnsServerStub {
         this.received = new ByteArrayOutputStream();
         this.toSend = new ByteArrayOutputStream();
     }
+
     Thread gatewayThread, feedbackThread;
     ServerSocket gatewaySocket, feedbackSocket;
 
@@ -88,6 +94,7 @@ public class ApnsServerStub {
 
     private class GatewayRunner implements Runnable {
 
+        @Override
         public void run() {
             try {
                 gatewaySocket = sslFactory.createServerSocket(gatewayPort);
@@ -95,53 +102,55 @@ public class ApnsServerStub {
                 messages.release();
                 throw new RuntimeException(e);
             }
-
-            InputStream in = null;
-            try {
-                // Listen for connections
-                startUp.release();
-                Socket socket = gatewaySocket.accept();
-
-                // Create streams to securely send and receive data to the client
-                in = socket.getInputStream();
-                gatewayOutputStream = socket.getOutputStream();
-                gatewayOutLock.release();
-
-                // Read from in and write to out...
-                byte[] read = readFully(in);
-                
-                waitBeforeSend();
-                received.write(read);
-                messages.release();
-
-
-                waitForError.acquire();
-                System.err.println("ApnsServerStub: Closing socket...");
-                // Close the socket
-                in.close();
-                gatewayOutputStream.close();
-                System.err.println("ApnsServerStub: Socket closed");
-
-            } catch (Throwable e) {
+            while (!stopped.get()) {
+                InputStream in = null;
                 try {
-                    if (in != null) {
-                        in.close();
+                    // Listen for connections
+                    startUp.release();
+                    Socket socket = gatewaySocket.accept();
+
+                    // Create streams to securely send and receive data to the
+                    // client
+                    in = socket.getInputStream();
+                    gatewayOutputStream = socket.getOutputStream();
+                    gatewayOutLock.release();
+
+                    // Read from in and write to out...
+                    byte[] read = readFully(in);
+
+                    waitBeforeSend();
+                    received.write(read);
+                    messages.release();
+
+                    waitForError.acquire();
+                    System.err.println("ApnsServerStub: Closing socket...");
+                    // Close the socket
+                    in.close();
+                    gatewayOutputStream.close();
+                    System.err.println("ApnsServerStub: Socket closed");
+
+                } catch (Throwable e) {
+                    try {
+                        if (in != null) {
+                            in.close();
+                        }
+                    } catch (Exception _) {
                     }
-                } catch (Exception _) {
-                }
-                try {
-                    if (gatewayOutputStream != null) {
-                        gatewayOutputStream.close();
+                    try {
+                        if (gatewayOutputStream != null) {
+                            gatewayOutputStream.close();
+                        }
+                    } catch (Exception _) {
                     }
-                } catch (Exception _) {
+                    messages.release();
                 }
-                messages.release();
             }
         }
     }
 
     private class FeedbackRunner implements Runnable {
 
+        @Override
         public void run() {
             try {
                 feedbackSocket = sslFactory.createServerSocket(feedbackPort);
@@ -156,7 +165,8 @@ public class ApnsServerStub {
                 startUp.release();
                 Socket socket = feedbackSocket.accept();
 
-                // Create streams to securely send and receive data to the client
+                // Create streams to securely send and receive data to the
+                // client
                 InputStream in = socket.getInputStream();
                 OutputStream out = socket.getOutputStream();
 
@@ -172,6 +182,7 @@ public class ApnsServerStub {
             messages.release();
         }
     }
+
     AtomicInteger readLen = new AtomicInteger();
 
     public void stopAt(int length) {
@@ -190,21 +201,20 @@ public class ApnsServerStub {
             throw new RuntimeException(e);
         }
 
-
         return stream.toByteArray();
     }
-    
+
     /**
      * Introduces a waiting time, used to trigger read timeouts.
      */
     private void waitBeforeSend() {
-    	int wait = toWaitBeforeSend.get();
-    	if(wait!=0)
-			try {
-				Thread.sleep(wait);
-			} catch (InterruptedException e) {
-				throw new RuntimeException(e);
-			}
+        int wait = toWaitBeforeSend.get();
+        if (wait != 0)
+            try {
+                Thread.sleep(wait);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
     }
-    
+
 }

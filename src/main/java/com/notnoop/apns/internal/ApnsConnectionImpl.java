@@ -35,6 +35,9 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.Socket;
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import javax.net.SocketFactory;
 import javax.net.ssl.SSLSocketFactory;
@@ -49,9 +52,6 @@ import com.notnoop.apns.ReconnectPolicy;
 import com.notnoop.apns.SimpleApnsNotification;
 import com.notnoop.exceptions.ApnsDeliveryErrorException;
 import com.notnoop.exceptions.NetworkIOException;
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ApnsConnectionImpl implements ApnsConnection {
 
@@ -105,6 +105,7 @@ public class ApnsConnectionImpl implements ApnsConnection {
         notificationsBuffer = new ConcurrentLinkedQueue<ApnsNotification>();
     }
 
+    @Override
     public synchronized void close() {
         Utilities.close(socket);
     }
@@ -180,6 +181,7 @@ public class ApnsConnectionImpl implements ApnsConnection {
                 } finally {
                     close();
                     drainBuffer();
+
                 }
             }
         }
@@ -238,6 +240,7 @@ public class ApnsConnectionImpl implements ApnsConnection {
     int DELAY_IN_MS = 1000;
     private static final int RETRIES = 3;
 
+    @Override
     public synchronized void sendMessage(ApnsNotification m) throws NetworkIOException {
         sendMessage(m, false);
     }
@@ -294,11 +297,13 @@ public class ApnsConnectionImpl implements ApnsConnection {
         }
     }
 
+    @Override
     public ApnsConnectionImpl copy() {
         return new ApnsConnectionImpl(factory, host, port, proxy, reconnectPolicy.copy(),
                 delegate, errorDetection, cacheLength, autoAdjustCacheLength, readTimeout);
     }
 
+    @Override
     public void testConnection() throws NetworkIOException {
         ApnsConnectionImpl testConnection = null;
         try {
@@ -311,10 +316,12 @@ public class ApnsConnectionImpl implements ApnsConnection {
         }
     }
 
+    @Override
     public void setCacheLength(int cacheLength) {
         this.cacheLength = cacheLength;
     }
 
+    @Override
     public int getCacheLength() {
         return cacheLength;
     }
