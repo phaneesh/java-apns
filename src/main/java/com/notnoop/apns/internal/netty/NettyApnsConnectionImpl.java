@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -48,6 +49,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     private final CacheStore cacheStore;
     private final ExecutorService executorService = Executors
             .newSingleThreadExecutor();
+
+    private final Object lockSendMessage = new Object();
 
     public NettyApnsConnectionImpl(ChannelProvider channelProvider,
             ApnsDelegate delegate, CacheStore cacheStore) {
@@ -110,32 +113,34 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
 
     protected void sendMessage(final ApnsNotification m,
             final boolean fromBuffer) {
-        int attempts = 0;
-        while (true) {
-            attempts++;
-            try {
-                channelProvider.runWithChannel(new WithChannelAction() {
-                    @Override
-                    public void perform(Channel channel) throws Exception {
-                        cacheStore.add(m);
-                        channel.writeAndFlush(m).sync();
-                        delegate.messageSent(m, fromBuffer);
-                        LOGGER.debug("Message \"{}\" sent (fromBuffer={})", m,
-                                fromBuffer);
-                        if (!fromBuffer)
-                            drainBuffer();
+        synchronized (lockSendMessage) {
+            int attempts = 0;
+            cacheStore.add(m);
+            while (true) {
+                attempts++;
+                try {
+                    channelProvider.runWithChannel(new WithChannelAction() {
+                        @Override
+                        public void perform(Channel channel) throws Exception {
+                            channel.writeAndFlush(m).sync();
+                            delegate.messageSent(m, fromBuffer);
+                            LOGGER.debug("Message \"{}\" sent (fromBuffer={})",
+                                    m, fromBuffer);
+                            if (!fromBuffer)
+                                drainBuffer();
+                        }
+                    });
+                    break;
+                } catch (Exception e) {
+                    if (attempts > RETRIES) {
+                        delegate.messageSendFailed(m, e);
+                        Utilities.wrapAndThrowAsRuntimeException(e);
                     }
-                });
-                break;
-            } catch (Exception e) {
-                if (attempts > RETRIES) {
-                    delegate.messageSendFailed(m, e);
-                    Utilities.wrapAndThrowAsRuntimeException(e);
+                    LOGGER.info("Failed to send message " + m + " (fromBuffer="
+                            + fromBuffer + ", attempts=" + attempts
+                            + " trying again after delay... (r", e);
+                    Utilities.sleep(DELAY_IN_MS);
                 }
-                LOGGER.info("Failed to send message " + m + " (fromBuffer="
-                        + fromBuffer + ", attempts=" + attempts
-                        + " trying again after delay... (r", e);
-                Utilities.sleep(DELAY_IN_MS);
             }
         }
     }
@@ -195,19 +200,22 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     // }
 
     private void drainBuffer() {
-        executorService.submit(new Runnable() {
-            @Override
-            public void run() {
-                LOGGER.debug("Draining buffer of notifications that need to be resent");
-                cacheStore.drain(new Drainer() {
-                    @Override
-                    public void process(ApnsNotification notification) {
-                        sendMessage(notification, true);
-                    }
-                });
-            }
-        });
-
+        try {
+            executorService.submit(new Runnable() {
+                @Override
+                public void run() {
+                    LOGGER.debug("Draining buffer of notifications that need to be resent");
+                    cacheStore.drain(new Drainer() {
+                        @Override
+                        public void process(ApnsNotification notification) {
+                            sendMessage(notification, true);
+                        }
+                    });
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            LOGGER.warn("Could not drain buffer, connection must be shutdown");
+        }
     }
 
     @Override

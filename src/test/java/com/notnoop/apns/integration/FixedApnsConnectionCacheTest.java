@@ -37,7 +37,7 @@ public class FixedApnsConnectionCacheTest {
         server = null;
     }
 
-    @Test//(timeout = 5000)
+    @Test(timeout = 5000)
     public void test_send_50_no_failure() {
         ConnectionCacheTest test = new ConnectionCacheTest();
         test.setError(DeliveryError.MISSING_DEVICE_TOKEN);
@@ -129,7 +129,6 @@ public class FixedApnsConnectionCacheTest {
                 Assert.assertTrue(receivedIds.get(0).contains(i));
             }
             for (int i = test.getIdToFail() + 1; i < test.getExpectedTotal(); i++) {
-                System.out.println(i);
                 Assert.assertTrue(receivedIds.get(1).contains(i));
             }
         }
