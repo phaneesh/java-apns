@@ -23,6 +23,7 @@ import com.notnoop.apns.ApnsDelegate;
 import com.notnoop.apns.ApnsNotification;
 import com.notnoop.apns.DeliveryResult;
 import com.notnoop.apns.internal.ApnsConnection;
+import com.notnoop.apns.internal.Utilities;
 import com.notnoop.apns.internal.netty.cache.CacheStore;
 import com.notnoop.apns.internal.netty.cache.CacheStore.Drainer;
 import com.notnoop.apns.internal.netty.channel.ChannelProvider;
@@ -40,6 +41,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
             .getLogger(NettyApnsConnectionImpl.class);
 
     private static final int RETRIES = 3;
+    private static final int DELAY_IN_MS = 1000;
 
     private final ApnsDelegate delegate;
     private final ChannelProvider channelProvider;
@@ -102,55 +104,95 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     }
 
     @Override
-    public void sendMessage(final ApnsNotification m) throws NetworkIOException {
-        executorService.submit(new Runnable() {
-            @Override
-            public void run() {
-                sendMessage(m, false, 0);
-            }
-        });
+    public void sendMessage(ApnsNotification m) throws NetworkIOException {
+        sendMessage(m, false);
     }
 
     protected void sendMessage(final ApnsNotification m,
-            final boolean fromBuffer, final int retries) {
-
-        channelProvider.runWithChannel(new WithChannelAction() {
-            @Override
-            public void perform(Channel channel) {
-                cacheStore.add(m);
-                channel.writeAndFlush(m).addListener(
-                        new ChannelFutureListener() {
-
-                            @Override
-                            public void operationComplete(ChannelFuture future)
-                                    throws Exception {
-                                if (future.isSuccess()) {
-                                    delegate.messageSent(m, fromBuffer);
-                                    LOGGER.debug(
-                                            "Message \"{}\" sent (fromBuffer={})",
-                                            m, fromBuffer);
-                                    if (!fromBuffer)
-                                        drainBuffer();
-                                } else {
-                                    if (retries > RETRIES) {
-                                        LOGGER.error("Max retries for {}", m);
-                                    }
-                                    executorService.submit(new Runnable() {
-
-                                        @Override
-                                        public void run() {
-                                            sendMessage(m, fromBuffer,
-                                                    retries + 1);
-                                        }
-                                    });
-                                }
-                            }
-                        });
-
+            final boolean fromBuffer) {
+        int attempts = 0;
+        while (true) {
+            attempts++;
+            try {
+                channelProvider.runWithChannel(new WithChannelAction() {
+                    @Override
+                    public void perform(Channel channel) throws Exception {
+                        cacheStore.add(m);
+                        channel.writeAndFlush(m).sync();
+                        delegate.messageSent(m, fromBuffer);
+                        LOGGER.debug("Message \"{}\" sent (fromBuffer={})", m,
+                                fromBuffer);
+                        if (!fromBuffer)
+                            drainBuffer();
+                    }
+                });
+                break;
+            } catch (Exception e) {
+                if (attempts > RETRIES) {
+                    delegate.messageSendFailed(m, e);
+                    Utilities.wrapAndThrowAsRuntimeException(e);
+                }
+                LOGGER.info("Failed to send message " + m + " (fromBuffer="
+                        + fromBuffer + ", attempts=" + attempts
+                        + " trying again after delay... (r", e);
+                Utilities.sleep(DELAY_IN_MS);
             }
-        });
-
+        }
     }
+
+    // We don't use this implementation that sends the message asynchronously,
+    // we want this to be sync
+    // @Override
+    // public void sendMessage(final ApnsNotification m) throws
+    // NetworkIOException {
+    // executorService.submit(new Runnable() {
+    // @Override
+    // public void run() {
+    // sendMessage(m, false, 0);
+    // }
+    // });
+    // }
+    //
+    // protected void sendMessage(final ApnsNotification m,
+    // final boolean fromBuffer, final int retries) {
+    //
+    // channelProvider.runWithChannel(new WithChannelAction() {
+    // @Override
+    // public void perform(Channel channel) {
+    // cacheStore.add(m);
+    // channel.writeAndFlush(m).addListener(
+    // new ChannelFutureListener() {
+    //
+    // @Override
+    // public void operationComplete(ChannelFuture future)
+    // throws Exception {
+    // if (future.isSuccess()) {
+    // delegate.messageSent(m, fromBuffer);
+    // LOGGER.debug(
+    // "Message \"{}\" sent (fromBuffer={})",
+    // m, fromBuffer);
+    // if (!fromBuffer)
+    // drainBuffer();
+    // } else {
+    // if (retries > RETRIES) {
+    // LOGGER.error("Max retries for {}", m);
+    // }
+    // executorService.submit(new Runnable() {
+    //
+    // @Override
+    // public void run() {
+    // sendMessage(m, fromBuffer,
+    // retries + 1);
+    // }
+    // });
+    // }
+    // }
+    // });
+    //
+    // }
+    // });
+    //
+    // }
 
     private void drainBuffer() {
         executorService.submit(new Runnable() {
@@ -160,7 +202,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                 cacheStore.drain(new Drainer() {
                     @Override
                     public void process(ApnsNotification notification) {
-                        sendMessage(notification, true, 0);
+                        sendMessage(notification, true);
                     }
                 });
             }
@@ -176,37 +218,38 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
 
     @Override
     public void onDeliveryResult(final DeliveryResult msg) {
-        executorService.submit(new Runnable() {
-            @Override
-            public void run() {
-                Integer newCacheLength = null;
-                try {
-                    Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
-                    ApnsNotification notification = cacheStore.removeAllBefore(
-                            msg, tempCache);
+        // Do not use executor service
+        // executorService.submit(new Runnable() {
+        // @Override
+        // public void run() {
+        Integer newCacheLength = null;
+        try {
+            Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
+            ApnsNotification notification = cacheStore.removeAllBefore(msg,
+                    tempCache);
 
-                    if (notification != null) {
-                        delegate.messageSendFailed(notification,
-                                new ApnsDeliveryErrorException(msg.getError()));
-                    } else {
-                        LOGGER.warn("Received error for message that wasn't in the cache...");
-                        cacheStore.addAll(tempCache);
-                        newCacheLength = cacheStore
-                                .resizeCacheIfNeeded(tempCache.size());
+            if (notification != null) {
+                delegate.messageSendFailed(notification,
+                        new ApnsDeliveryErrorException(msg.getError()));
+            } else {
+                LOGGER.warn("Received error for message that wasn't in the cache...");
+                cacheStore.addAll(tempCache);
+                newCacheLength = cacheStore.resizeCacheIfNeeded(tempCache
+                        .size());
 
-                        delegate.messageSendFailed(null,
-                                new ApnsDeliveryErrorException(msg.getError()));
-                    }
-
-                    delegate.notificationsResent(cacheStore.moveCacheToBuffer());
-                    delegate.connectionClosed(msg.getError(), msg.getId());
-                } finally {
-                    if (newCacheLength != null) {
-                        delegate.cacheLengthExceeded(newCacheLength);
-                    }
-                }
+                delegate.messageSendFailed(null,
+                        new ApnsDeliveryErrorException(msg.getError()));
             }
-        });
+
+            delegate.notificationsResent(cacheStore.moveCacheToBuffer());
+            delegate.connectionClosed(msg.getError(), msg.getId());
+        } finally {
+            if (newCacheLength != null) {
+                delegate.cacheLengthExceeded(newCacheLength);
+            }
+        }
+        // }
+        // });
 
     }
 

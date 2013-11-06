@@ -28,11 +28,11 @@ public interface ChannelProvider {
      */
     void close() throws IOException;
 
-    void runWithChannel(WithChannelAction action);
+    void runWithChannel(WithChannelAction action) throws Exception;
 
     public static interface WithChannelAction {
 
-        void perform(Channel channel);
+        void perform(Channel channel) throws Exception;
 
     }
 

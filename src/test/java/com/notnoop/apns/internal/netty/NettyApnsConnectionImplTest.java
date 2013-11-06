@@ -40,7 +40,7 @@ public class NettyApnsConnectionImplTest {
         conn.init();
 
         for (int i = 0; i < N; i++) {
-            conn.sendMessage(notifications[i], false, 0);
+            conn.sendMessage(notifications[i], false);
         }
         conn.close();
         assertEquals(N, channelProvider.getCurrentChannel().outboundMessages()
@@ -85,7 +85,7 @@ public class NettyApnsConnectionImplTest {
         conn.init();
 
         for (int i = 0; i < N; i++) {
-            conn.sendMessage(notifications[i], false, 0);
+            conn.sendMessage(notifications[i], false);
         }
         conn.close();
         // Verify an error was sent...

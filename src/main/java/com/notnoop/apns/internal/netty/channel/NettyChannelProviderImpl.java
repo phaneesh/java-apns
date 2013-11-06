@@ -96,7 +96,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
     }
 
     @Override
-    public void runWithChannel(WithChannelAction action) {
+    public void runWithChannel(WithChannelAction action) throws Exception {
         Channel channel = getChannel();
         action.perform(channel);
     }

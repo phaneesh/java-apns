@@ -37,7 +37,7 @@ public class FixedApnsConnectionCacheTest {
         server = null;
     }
 
-    @Test(timeout = 5000)
+    @Test//(timeout = 5000)
     public void test_send_50_no_failure() {
         ConnectionCacheTest test = new ConnectionCacheTest();
         test.setError(DeliveryError.MISSING_DEVICE_TOKEN);
