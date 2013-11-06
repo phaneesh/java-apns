@@ -38,7 +38,7 @@ public class FixedApnsConnectionCacheTest {
     }
 
     @Test(timeout = 5000)
-    public void test_send_50_no_failure() {
+    public void test_send_50_no_failure() throws InterruptedException {
         ConnectionCacheTest test = new ConnectionCacheTest();
         test.setError(DeliveryError.MISSING_DEVICE_TOKEN);
         test.setExpectedClosedConnections(0);
@@ -50,7 +50,7 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test(timeout = 500000)
+    @Test(timeout = 5000)
     public void test_20_fails_id_10_after_receiving_15()
             throws InterruptedException {
         ConnectionCacheTest test = new ConnectionCacheTest();
@@ -64,7 +64,62 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    protected void test(ConnectionCacheTest test) {
+    @Test(timeout = 5000)
+    public void test_20_fails_id_1_after_receiving_15()
+            throws InterruptedException {
+        ConnectionCacheTest test = new ConnectionCacheTest();
+        test.setError(DeliveryError.MISSING_DEVICE_TOKEN);
+        test.setExpectedClosedConnections(1);
+        test.setExpectedResent(14);
+        test.setExpectedSent(19);
+        test.setExpectedTotal(20);
+        test.setIdToFail(1);
+        test.setFailWhenReceive(15);
+        test(test);
+    }
+
+    @Test(timeout = 5000)
+    public void test_20_fails_last() throws InterruptedException {
+        ConnectionCacheTest test = new ConnectionCacheTest();
+        test.setError(DeliveryError.MISSING_DEVICE_TOKEN);
+        test.setExpectedClosedConnections(1);
+        test.setExpectedResent(0);
+        test.setExpectedSent(19);
+        test.setExpectedTotal(20);
+        test.setIdToFail(19);
+        test.setFailWhenReceive(19);
+        test(test);
+    }
+
+    @Test(timeout = 5000)
+    public void test_20_fails_id_30_after_receiving_15()
+            throws InterruptedException {
+        ConnectionCacheTest test = new ConnectionCacheTest();
+        test.setError(DeliveryError.MISSING_DEVICE_TOKEN);
+        test.setExpectedClosedConnections(1);
+        test.setExpectedResent(16);
+        test.setExpectedSent(15);
+        test.setExpectedTotal(16);
+        test.setIdToFail(30);
+        test.setFailWhenReceive(15);
+        test(test);
+    }
+
+    @Test(timeout = 5000)
+    public void test_20_fails_id_15_after_receiving_30()
+            throws InterruptedException {
+        ConnectionCacheTest test = new ConnectionCacheTest();
+        test.setError(DeliveryError.MISSING_DEVICE_TOKEN);
+        test.setExpectedClosedConnections(0);
+        test.setExpectedResent(0);
+        test.setExpectedSent(20);
+        test.setExpectedTotal(20);
+        test.setIdToFail(null);
+        test.setFailWhenReceive(null);
+        test(test);
+    }
+
+    protected void test(ConnectionCacheTest test) throws InterruptedException {
         final CountDownLatch sync = new CountDownLatch(test.getExpectedTotal());
         final CountDownLatch syncConnectionClosed = new CountDownLatch(
                 test.getIdToFail() != null ? 1 : 0);
@@ -104,32 +159,43 @@ public class FixedApnsConnectionCacheTest {
         if (test.getIdToFail() != null && test.getFailWhenReceive() != null)
             server.fail(DeliveryError.MISSING_DEVICE_TOKEN, test.getIdToFail(),
                     test.getFailWhenReceive());
+        CountDownLatch syncDelivery = server.getCountDownLatch(test
+                .getExpectedTotal() + test.getExpectedResent());
 
         test.act(service);
 
         try {
+            syncDelivery.await();
             syncConnectionClosed.await();
             sync.await();
         } catch (InterruptedException e1) {
             throw new RuntimeException(e1);
         }
         service.stop();
-        // Assert.assertEquals(test.getExpectedSent(), numSent.get());
-        // Assert.assertTrue(test.getExpectedResent() <= numResent.get());
-        // Assert.assertEquals(test.getExpectedClosedConnections(),
-        // numConnectionClosed.get());
+
+        Assert.assertEquals(test.getExpectedSent(), numSent.get());
+        Assert.assertTrue(test.getExpectedResent() <= numResent.get());
+        Assert.assertEquals(test.getExpectedClosedConnections(),
+                numConnectionClosed.get());
         List<List<Integer>> receivedIds = server.getReceivedNotificationIds();
 
-        // Assert.assertEquals(test.getExpectedClosedConnections(),
-        // receivedIds.size() - 1);
+        Assert.assertEquals(test.getExpectedClosedConnections(),
+                receivedIds.size() - 1);
 
         System.out.println(receivedIds);
         if (test.getIdToFail() != null && test.getFailWhenReceive() != null) {
             for (int i = 0; i <= test.getFailWhenReceive(); i++) {
-                Assert.assertTrue(receivedIds.get(0).contains(i));
+                Assert.assertTrue("Message " + i + " not received in list 0",
+                        receivedIds.get(0).contains(i));
             }
             for (int i = test.getIdToFail() + 1; i < test.getExpectedTotal(); i++) {
-                Assert.assertTrue(receivedIds.get(1).contains(i));
+                Assert.assertTrue("Message " + i + " not received in list 1",
+                        receivedIds.get(1).contains(i));
+            }
+        } else {
+            for (int i = 0; i < test.getExpectedTotal(); i++) {
+                Assert.assertTrue("Message " + i + " not received in list 0",
+                        receivedIds.get(0).contains(i));
             }
         }
     }

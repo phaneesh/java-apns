@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.net.ssl.SSLContext;
@@ -185,7 +186,7 @@ public class MockApnsServer {
 
         private final MockApnsServer server;
 
-        private boolean rejectFutureMessages = false;
+        private AtomicBoolean rejectFutureMessages = new AtomicBoolean(false);
 
         public MockApnsServerHandler(final MockApnsServer server) {
             this.server = server;
@@ -195,13 +196,13 @@ public class MockApnsServer {
         protected void channelRead0(final ChannelHandlerContext context,
                 ApnsNotification receivedNotification) throws Exception {
             System.out.println("RECEIVED " + receivedNotification);
-            if (!this.rejectFutureMessages) {
+            if (!this.rejectFutureMessages.get()) {
                 final DeliveryResult rejection = this.server
                         .handleReceivedNotification(receivedNotification);
 
                 if (rejection != null) {
 
-                    this.rejectFutureMessages = true;
+                    this.rejectFutureMessages.set(true);
 
                     context.writeAndFlush(rejection).addListener(
                             new GenericFutureListener<ChannelFuture>() {
@@ -284,21 +285,24 @@ public class MockApnsServer {
             final ApnsNotification receivedNotification) {
         addReceivedNotification(receivedNotification);
 
-        for (final CountDownLatch latch : this.countdownLatches) {
-            latch.countDown();
-        }
         synchronized (this) {
+            final DeliveryResult result;
             if (failWhenReceive != null
                     && failWhenReceive == receivedNotification.getIdentifier()) {
-                DeliveryResult result = new DeliveryResult(errorCode, idToFail);
+                result = new DeliveryResult(errorCode, idToFail);
                 System.err.println("Causing failure...");
 
                 errorCode = null;
                 failWhenReceive = null;
                 idToFail = null;
-                return result;
             } else
-                return null;
+                result = null;
+
+            for (final CountDownLatch latch : this.countdownLatches) {
+                latch.countDown();
+            }
+
+            return result;
         }
     }
 
