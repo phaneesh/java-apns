@@ -47,8 +47,7 @@ public class FixedApnsConnectionCacheTest {
         server = null;
     }
 
-    @Test
-    // (timeout = 5000)
+    @Test(timeout = 5000)
     public void test_send_50_no_failure() throws InterruptedException {
         ConnectionCacheTest test = new ConnectionCacheTest();
         test.setExpectedClosedConnections(0);
@@ -58,8 +57,7 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test
-    // (timeout = 5000)
+    @Test(timeout = 5000)
     public void test_20_fails_id_10_after_receiving_15()
             throws InterruptedException {
         ConnectionCacheTest test = new ConnectionCacheTest();
@@ -71,8 +69,7 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test
-    // (timeout = 5000)
+    @Test(timeout = 5000)
     public void test_20_fails_id_1_after_receiving_15()
             throws InterruptedException {
         ConnectionCacheTest test = new ConnectionCacheTest();
@@ -84,8 +81,7 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test
-    // (timeout = 5000)
+    @Test(timeout = 5000)
     public void test_20_fails_last() throws InterruptedException {
         ConnectionCacheTest test = new ConnectionCacheTest();
         test.setExpectedClosedConnections(1);
@@ -96,8 +92,7 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test
-    // (timeout = 5000)
+    @Test(timeout = 5000)
     public void test_20_fails_id_30_after_receiving_15()
             throws InterruptedException {
         ConnectionCacheTest test = new ConnectionCacheTest();
@@ -109,8 +104,7 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test
-    // (timeout = 5000)
+    @Test(timeout = 5000)
     public void test_20_fails_id_15_after_receiving_30()
             throws InterruptedException {
         ConnectionCacheTest test = new ConnectionCacheTest();
@@ -122,7 +116,7 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void test_multithread() {
 
         MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
