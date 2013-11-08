@@ -46,6 +46,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     private final ApnsDelegate delegate;
     private final ChannelProvider channelProvider;
     private final CacheStore cacheStore;
+
     private final ExecutorService executorService = new PrioritizedExecutorService(
             1, 1, TimeUnit.SECONDS);
 
@@ -204,7 +205,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
             executorService.submit(new AbstractPriorityRunnableImpl(1) {
 
                 @Override
-                public void run() {
+                public void priorityRun() {
                     LOGGER.debug("Draining buffer of notifications that need to be resent");
                     cacheStore.drain(new Drainer() {
                         @Override
@@ -229,7 +230,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     public void onDeliveryResult(final DeliveryResult msg) {
         executorService.submit(new AbstractPriorityRunnableImpl(0) {
             @Override
-            public void run() {
+            public void priorityRun() {
                 Integer newCacheLength = null;
                 try {
                     synchronized (cacheStore) {

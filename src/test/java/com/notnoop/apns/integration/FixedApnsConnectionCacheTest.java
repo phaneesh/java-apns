@@ -57,7 +57,7 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 50000000)
     public void test_20_fails_id_10_after_receiving_15()
             throws InterruptedException {
         ConnectionCacheTest test = new ConnectionCacheTest();
@@ -466,6 +466,7 @@ public class FixedApnsConnectionCacheTest {
             this.numOfThreads = numOfThreads;
         }
 
+        @Override
         public void act(final ApnsService apnsService) {
             // Prepare notifications
             final ConcurrentHashMap<Integer, List<Integer>> notificationsPerThread = new ConcurrentHashMap<Integer, List<Integer>>();

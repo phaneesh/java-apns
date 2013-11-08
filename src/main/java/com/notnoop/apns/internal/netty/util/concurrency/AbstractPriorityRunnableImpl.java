@@ -14,10 +14,22 @@ public abstract class AbstractPriorityRunnableImpl implements PriorityRunnable {
     }
 
     @Override
-    public abstract void run();
+    public final void run() {
+        final String orgName = Thread.currentThread().getName();
+        Thread.currentThread().setName(
+                orgName + " - Executing task with priority #" + priority);
+        try {
+            priorityRun();
+        } finally {
+            Thread.currentThread().setName(orgName);
+        }
+    }
+
+    protected abstract void priorityRun();
 
     @Override
     public int compareTo(PriorityRunnable o) {
         return Integer.compare(priority, o.getPriority());
     }
+
 }
