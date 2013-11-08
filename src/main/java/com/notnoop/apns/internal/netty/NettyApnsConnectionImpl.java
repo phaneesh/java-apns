@@ -52,7 +52,18 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
             1, 1, TimeUnit.SECONDS);
 
     private final Object lockSendMessage = new Object();
+
+    // This semaphore is used to control when is allowed to send messages to the
+    // channel, it will be disallowed when a response is received from the APNS
+    // server (onDeliveryResult is called) and allowed when the cache is moved
+    // to the buffer to continue with new connection, avoid the possibility to
+    // send a message twice to the APNS server
     private final Semaphore allowSendSemaphore = new Semaphore(1, true);
+
+    // This semaphore is used to avoid a race condition when a message is added
+    // to the cache after sent to the channel and an error response is received
+    // from the APNS server, it ensures the message will be added to the buffer
+    // to be resent in the draining operation.
     private final Semaphore accessCacheStoreSemaphore = new Semaphore(1, true);
 
     public NettyApnsConnectionImpl(ChannelProvider channelProvider,
