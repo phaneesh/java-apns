@@ -11,9 +11,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -32,6 +30,8 @@ import com.notnoop.apns.internal.netty.channel.ChannelProvider.ChannelHandlersPr
 import com.notnoop.apns.internal.netty.channel.ChannelProvider.WithChannelAction;
 import com.notnoop.apns.internal.netty.encoding.ApnsNotificationEncoder;
 import com.notnoop.apns.internal.netty.encoding.ApnsResultDecoder;
+import com.notnoop.apns.internal.netty.util.concurrency.AbstractPriorityRunnableImpl;
+import com.notnoop.apns.internal.netty.util.concurrency.PrioritizedExecutorService;
 import com.notnoop.exceptions.ApnsDeliveryErrorException;
 import com.notnoop.exceptions.NetworkIOException;
 
@@ -46,14 +46,13 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     private final ApnsDelegate delegate;
     private final ChannelProvider channelProvider;
     private final CacheStore cacheStore;
-    private final ExecutorService executorService = new ThreadPoolExecutor(1,
-            1, 0, TimeUnit.NANOSECONDS, new PriorityBlockingQueue<Runnable>());
+    private final ExecutorService executorService = new PrioritizedExecutorService(
+            1, 1, TimeUnit.SECONDS);
 
     private final Object lockSendMessage = new Object();
 
     public NettyApnsConnectionImpl(ChannelProvider channelProvider,
             ApnsDelegate delegate, CacheStore cacheStore) {
-
         this.delegate = delegate;
         this.channelProvider = channelProvider;
         this.cacheStore = cacheStore;
@@ -278,36 +277,6 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     public ApnsConnection copy() {
         // TODO Auto-generated method stub
         return null;
-    }
-
-    private static interface PriorityRunnable extends Runnable,
-            Comparable<PriorityRunnable> {
-
-        int getPriority();
-
-    }
-
-    private abstract static class AbstractPriorityRunnableImpl implements
-            PriorityRunnable {
-
-        private final int priority;
-
-        protected AbstractPriorityRunnableImpl(int priority) {
-            this.priority = priority;
-        }
-
-        @Override
-        public int getPriority() {
-            return priority;
-        }
-
-        @Override
-        public abstract void run();
-
-        @Override
-        public int compareTo(PriorityRunnable o) {
-            return Integer.compare(priority, o.getPriority());
-        }
     }
 
 }
