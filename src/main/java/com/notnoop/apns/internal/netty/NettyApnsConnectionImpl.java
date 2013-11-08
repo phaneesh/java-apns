@@ -11,8 +11,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -45,8 +46,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     private final ApnsDelegate delegate;
     private final ChannelProvider channelProvider;
     private final CacheStore cacheStore;
-    private final ExecutorService executorService = Executors
-            .newSingleThreadExecutor();
+    private final ExecutorService executorService = new ThreadPoolExecutor(1,
+            1, 0, TimeUnit.NANOSECONDS, new PriorityBlockingQueue<Runnable>());
 
     private final Object lockSendMessage = new Object();
 
@@ -113,14 +114,16 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
             final boolean fromBuffer) {
         synchronized (lockSendMessage) {
             int attempts = 0;
-            cacheStore.add(m);
             while (true) {
                 attempts++;
                 try {
                     channelProvider.runWithChannel(new WithChannelAction() {
                         @Override
                         public void perform(Channel channel) throws Exception {
-                            channel.writeAndFlush(m).sync();
+                            synchronized (cacheStore) {
+                                channel.writeAndFlush(m).sync();
+                                cacheStore.add(m);
+                            }
                             delegate.messageSent(m, fromBuffer);
                             LOGGER.debug("Message \"{}\" sent (fromBuffer={})",
                                     m, fromBuffer);
@@ -199,7 +202,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
 
     private void drainBuffer() {
         try {
-            executorService.submit(new Runnable() {
+            executorService.submit(new AbstractPriorityRunnableImpl(1) {
+
                 @Override
                 public void run() {
                     LOGGER.debug("Draining buffer of notifications that need to be resent");
@@ -224,39 +228,44 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
 
     @Override
     public void onDeliveryResult(final DeliveryResult msg) {
-        // Do not use executor service
-        // executorService.submit(new Runnable() {
-        // @Override
-        // public void run() {
-        Integer newCacheLength = null;
-        try {
-            Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
-            ApnsNotification notification = cacheStore.removeAllBefore(msg,
-                    tempCache);
+        executorService.submit(new AbstractPriorityRunnableImpl(0) {
+            @Override
+            public void run() {
+                Integer newCacheLength = null;
+                try {
+                    synchronized (cacheStore) {
+                        Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
+                        ApnsNotification notification = cacheStore
+                                .removeAllBefore(msg, tempCache);
 
-            if (notification != null) {
-                delegate.messageSendFailed(notification,
-                        new ApnsDeliveryErrorException(msg.getError()));
-            } else {
-                LOGGER.warn("Received error for message that wasn't in the cache...");
-                cacheStore.addAll(tempCache);
-                newCacheLength = cacheStore.resizeCacheIfNeeded(tempCache
-                        .size());
+                        if (notification != null) {
+                            delegate.messageSendFailed(
+                                    notification,
+                                    new ApnsDeliveryErrorException(msg
+                                            .getError()));
+                        } else {
+                            LOGGER.warn("Received error for message that wasn't in the cache...");
+                            cacheStore.addAll(tempCache);
+                            newCacheLength = cacheStore
+                                    .resizeCacheIfNeeded(tempCache.size());
 
-                delegate.messageSendFailed(null,
-                        new ApnsDeliveryErrorException(msg.getError()));
+                            delegate.messageSendFailed(
+                                    null,
+                                    new ApnsDeliveryErrorException(msg
+                                            .getError()));
+                        }
+
+                        delegate.notificationsResent(cacheStore
+                                .moveCacheToBuffer());
+                        delegate.connectionClosed(msg.getError(), msg.getId());
+                    }
+                } finally {
+                    if (newCacheLength != null) {
+                        delegate.cacheLengthExceeded(newCacheLength);
+                    }
+                }
             }
-
-            delegate.notificationsResent(cacheStore.moveCacheToBuffer());
-            delegate.connectionClosed(msg.getError(), msg.getId());
-        } finally {
-            if (newCacheLength != null) {
-                delegate.cacheLengthExceeded(newCacheLength);
-            }
-        }
-        // }
-        // });
-
+        });
     }
 
     @Override
@@ -269,6 +278,36 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     public ApnsConnection copy() {
         // TODO Auto-generated method stub
         return null;
+    }
+
+    private static interface PriorityRunnable extends Runnable,
+            Comparable<PriorityRunnable> {
+
+        int getPriority();
+
+    }
+
+    private abstract static class AbstractPriorityRunnableImpl implements
+            PriorityRunnable {
+
+        private final int priority;
+
+        protected AbstractPriorityRunnableImpl(int priority) {
+            this.priority = priority;
+        }
+
+        @Override
+        public int getPriority() {
+            return priority;
+        }
+
+        @Override
+        public abstract void run();
+
+        @Override
+        public int compareTo(PriorityRunnable o) {
+            return Integer.compare(priority, o.getPriority());
+        }
     }
 
 }
