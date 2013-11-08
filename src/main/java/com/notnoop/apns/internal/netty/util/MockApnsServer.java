@@ -18,11 +18,12 @@ import io.netty.util.concurrent.GenericFutureListener;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Vector;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.net.ssl.SSLContext;
@@ -43,10 +44,8 @@ public class MockApnsServer {
     private final List<List<ApnsNotification>> receivedNotifications = new CopyOnWriteArrayList<>();
     private final Vector<CountDownLatch> countdownLatches;
 
-    private Integer idToFail = null;
-    private Integer failWhenReceive = null;
-    private DeliveryError errorCode;
     private SSLContext sslContext;
+    private Map<Integer, DeliveryResult> fails = new HashMap<Integer, DeliveryResult>();
 
     public static final int MAX_PAYLOAD_SIZE = 256;
 
@@ -186,7 +185,7 @@ public class MockApnsServer {
 
         private final MockApnsServer server;
 
-        private AtomicBoolean rejectFutureMessages = new AtomicBoolean(false);
+        private boolean rejectFutureMessages = false;
 
         public MockApnsServerHandler(final MockApnsServer server) {
             this.server = server;
@@ -196,27 +195,34 @@ public class MockApnsServer {
         protected void channelRead0(final ChannelHandlerContext context,
                 ApnsNotification receivedNotification) throws Exception {
             System.out.println("RECEIVED " + receivedNotification);
-            if (!this.rejectFutureMessages.get()) {
-                final DeliveryResult rejection = this.server
-                        .handleReceivedNotification(receivedNotification);
+            final DeliveryResult rejection;
 
-                if (rejection != null) {
-
-                    this.rejectFutureMessages.set(true);
-
-                    context.writeAndFlush(rejection).addListener(
-                            new GenericFutureListener<ChannelFuture>() {
-
-                                @Override
-                                public void operationComplete(
-                                        final ChannelFuture future) {
-                                    setupNextNotificationsList();
-                                    context.close();
-                                }
-
-                            });
+            synchronized (this) {
+                if (!this.rejectFutureMessages) {
+                    rejection = this.server
+                            .handleReceivedNotification(receivedNotification);
+                    if (rejection != null) {
+                        this.rejectFutureMessages = true;
+                    }
+                } else {
+                    return;
                 }
             }
+
+            if (rejection != null) {
+                context.writeAndFlush(rejection).addListener(
+                        new GenericFutureListener<ChannelFuture>() {
+
+                            @Override
+                            public void operationComplete(
+                                    final ChannelFuture future) {
+                                setupNextNotificationsList();
+                                context.close();
+                            }
+
+                        });
+            }
+
         }
     }
 
@@ -276,30 +282,33 @@ public class MockApnsServer {
      */
     public synchronized void fail(final DeliveryError errorCode,
             final int idToFail, final int failWhenReceive) {
-        this.errorCode = errorCode;
-        this.idToFail = idToFail;
-        this.failWhenReceive = failWhenReceive;
+        fails.put(failWhenReceive, new DeliveryResult(errorCode, idToFail));
     }
 
     protected DeliveryResult handleReceivedNotification(
             final ApnsNotification receivedNotification) {
-        addReceivedNotification(receivedNotification);
-
         synchronized (this) {
-            final DeliveryResult result;
-            if (failWhenReceive != null
-                    && failWhenReceive == receivedNotification.getIdentifier()) {
-                result = new DeliveryResult(errorCode, idToFail);
-                System.err.println("Causing failure...");
+            boolean resent = false;
+            for (List<Integer> ids : getReceivedNotificationIds()) {
+                if (ids.contains(receivedNotification.getIdentifier())) {
+                    resent = true;
+                    break;
+                }
+            }
 
-                errorCode = null;
-                failWhenReceive = null;
-                idToFail = null;
+            addReceivedNotification(receivedNotification);
+
+            final DeliveryResult result;
+            if (fails.containsKey(receivedNotification.getIdentifier())) {
+                result = fails.remove(receivedNotification.getIdentifier());
+                System.err.println("Causing failure...");
             } else
                 result = null;
 
-            for (final CountDownLatch latch : this.countdownLatches) {
-                latch.countDown();
+            if (!resent) {
+                for (final CountDownLatch latch : this.countdownLatches) {
+                    latch.countDown();
+                }
             }
 
             return result;
@@ -340,4 +349,5 @@ public class MockApnsServer {
 
         return latch;
     }
+
 }
