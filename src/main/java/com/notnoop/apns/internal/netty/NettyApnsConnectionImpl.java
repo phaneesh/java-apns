@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -51,6 +52,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
             1, 1, TimeUnit.SECONDS);
 
     private final Object lockSendMessage = new Object();
+    private final Semaphore allowSendSemaphore = new Semaphore(1, true);
+    private final Semaphore accessCacheStoreSemaphore = new Semaphore(1, true);
 
     public NettyApnsConnectionImpl(ChannelProvider channelProvider,
             ApnsDelegate delegate, CacheStore cacheStore) {
@@ -112,18 +115,27 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
 
     protected void sendMessage(final ApnsNotification m,
             final boolean fromBuffer) {
-        synchronized (lockSendMessage) {
-            int attempts = 0;
-            while (true) {
-                attempts++;
-                try {
+        int attempts = 0;
+        while (true) {
+            attempts++;
+            try {
+                synchronized (lockSendMessage) {
                     channelProvider.runWithChannel(new WithChannelAction() {
                         @Override
                         public void perform(Channel channel) throws Exception {
-                            synchronized (cacheStore) {
+                            try {
+                                allowSendSemaphore.acquire();
+                                allowSendSemaphore.release();
+                                LOGGER.debug("Acquiring accessCacheStoreSemaphore in sendMessage");
+                                accessCacheStoreSemaphore.acquire();
+                                LOGGER.debug("Acquired accessCacheStoreSemaphore in sendMessage");
                                 channel.writeAndFlush(m).sync();
                                 cacheStore.add(m);
+                            } finally {
+                                accessCacheStoreSemaphore.release();
+                                LOGGER.debug("Released accessCacheStoreSemaphore in sendMessage");
                             }
+
                             delegate.messageSent(m, fromBuffer);
                             LOGGER.debug("Message \"{}\" sent (fromBuffer={})",
                                     m, fromBuffer);
@@ -131,17 +143,17 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                                 drainBuffer();
                         }
                     });
-                    break;
-                } catch (Exception e) {
-                    if (attempts > RETRIES) {
-                        delegate.messageSendFailed(m, e);
-                        Utilities.wrapAndThrowAsRuntimeException(e);
-                    }
-                    LOGGER.info("Failed to send message " + m + " (fromBuffer="
-                            + fromBuffer + ", attempts=" + attempts
-                            + " trying again after delay... (r", e);
-                    Utilities.sleep(DELAY_IN_MS);
                 }
+                break;
+            } catch (Exception e) {
+                if (attempts > RETRIES) {
+                    delegate.messageSendFailed(m, e);
+                    Utilities.wrapAndThrowAsRuntimeException(e);
+                }
+                LOGGER.info("Failed to send message " + m + " (fromBuffer="
+                        + fromBuffer + ", attempts=" + attempts
+                        + " trying again after delay... (r", e);
+                Utilities.sleep(DELAY_IN_MS);
             }
         }
     }
@@ -228,41 +240,41 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
 
     @Override
     public void onDeliveryResult(final DeliveryResult msg) {
+        allowSendSemaphore.acquireUninterruptibly();
         executorService.submit(new AbstractPriorityRunnableImpl(0) {
             @Override
             public void priorityRun() {
                 Integer newCacheLength = null;
                 try {
-                    synchronized (cacheStore) {
-                        Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
-                        ApnsNotification notification = cacheStore
-                                .removeAllBefore(msg, tempCache);
+                    LOGGER.debug("Acquiring accessCacheStoreSemaphore in onDeliveryResult");
+                    accessCacheStoreSemaphore.acquireUninterruptibly();
+                    LOGGER.debug("Acquired accessCacheStoreSemaphore in onDeliveryResult");
+                    Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
+                    ApnsNotification notification = cacheStore.removeAllBefore(
+                            msg, tempCache);
 
-                        if (notification != null) {
-                            delegate.messageSendFailed(
-                                    notification,
-                                    new ApnsDeliveryErrorException(msg
-                                            .getError()));
-                        } else {
-                            LOGGER.warn("Received error for message that wasn't in the cache...");
-                            cacheStore.addAll(tempCache);
-                            newCacheLength = cacheStore
-                                    .resizeCacheIfNeeded(tempCache.size());
+                    if (notification != null) {
+                        delegate.messageSendFailed(notification,
+                                new ApnsDeliveryErrorException(msg.getError()));
+                    } else {
+                        LOGGER.warn("Received error for message that wasn't in the cache...");
+                        cacheStore.addAll(tempCache);
+                        newCacheLength = cacheStore
+                                .resizeCacheIfNeeded(tempCache.size());
 
-                            delegate.messageSendFailed(
-                                    null,
-                                    new ApnsDeliveryErrorException(msg
-                                            .getError()));
-                        }
-
-                        delegate.notificationsResent(cacheStore
-                                .moveCacheToBuffer());
-                        delegate.connectionClosed(msg.getError(), msg.getId());
+                        delegate.messageSendFailed(null,
+                                new ApnsDeliveryErrorException(msg.getError()));
                     }
+
+                    delegate.notificationsResent(cacheStore.moveCacheToBuffer());
+                    delegate.connectionClosed(msg.getError(), msg.getId());
                 } finally {
                     if (newCacheLength != null) {
                         delegate.cacheLengthExceeded(newCacheLength);
                     }
+                    accessCacheStoreSemaphore.release();
+                    LOGGER.debug("Released accessCacheStoreSemaphore in onDeliveryResult");
+                    allowSendSemaphore.release();
                 }
             }
         });
