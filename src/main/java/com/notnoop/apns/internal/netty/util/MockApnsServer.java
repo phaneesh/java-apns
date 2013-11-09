@@ -201,10 +201,15 @@ public class MockApnsServer {
                 if (!this.rejectFutureMessages) {
                     rejection = this.server
                             .handleReceivedNotification(receivedNotification);
+                    System.out.println("Notification handled "
+                            + receivedNotification);
+
                     if (rejection != null) {
                         this.rejectFutureMessages = true;
                     }
                 } else {
+                    System.out.println("Notification rejected "
+                            + receivedNotification);
                     return;
                 }
             }
@@ -323,6 +328,8 @@ public class MockApnsServer {
 
     private synchronized void addReceivedNotification(
             ApnsNotification receivedNotification) {
+        System.out.println("Adding received notification "
+                + receivedNotification);
         receivedNotifications.get(currentNotificationList.get()).add(
                 receivedNotification);
     }

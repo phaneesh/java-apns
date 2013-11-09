@@ -63,9 +63,11 @@ public class CacheStoreImpl implements CacheStore {
     @Override
     public void add(ApnsNotification notification) {
         cachedNotifications.add(notification);
+        LOGGER.debug("Added notification to cache {}", notification);
         while (cachedNotifications.size() > cacheLength) {
-            cachedNotifications.poll();
-            LOGGER.debug("Removing notification from cache {}", notification);
+            ApnsNotification removedNotification = cachedNotifications.poll();
+            LOGGER.debug("Removing notification from cache {}",
+                    removedNotification);
         }
     }
 

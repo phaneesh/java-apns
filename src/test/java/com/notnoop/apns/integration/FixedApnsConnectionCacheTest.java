@@ -57,7 +57,7 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test(timeout = 50000000)
+    @Test(timeout = 5000)
     public void test_20_fails_id_10_after_receiving_15()
             throws InterruptedException {
         ConnectionCacheTest test = new ConnectionCacheTest();
@@ -118,15 +118,47 @@ public class FixedApnsConnectionCacheTest {
 
     @Test(timeout = 5000)
     public void test_multithread() {
-
         MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
         test.setNumOfThreads(4);
         test.setExpectedClosedConnections(1);
-        test.setExpectedResent(18);
         test.setExpectedSent(99);
         test.setExpectedTotal(100);
         test.addFail(new Fail(55, 58, DeliveryError.MISSING_DEVICE_TOKEN));
 
+        testMultithread(test);
+    }
+
+    @Test(timeout = 200000)
+    public void test_multithread_complex() {
+        MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
+        test.setNumOfThreads(8);
+        test.setExpectedClosedConnections(19);
+        test.setExpectedSent(49981);
+        test.setExpectedTotal(50000);
+        test.addFail(new Fail(55, 58, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(259, 300, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(1024, 1035, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(5323, 5344, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(5790, 5800, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(10579, 10601, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(22359, 22370, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(27857, 27862, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(28474, 28485, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(29678, 29701, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(30865, 30872, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(32276, 32299, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(34629, 34654, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(35813, 35824, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(37666, 37715, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(38990, 38991, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(39334, 39347, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(40000, 40010, DeliveryError.MISSING_DEVICE_TOKEN));
+        test.addFail(new Fail(45423, 45449, DeliveryError.MISSING_DEVICE_TOKEN));
+
+        testMultithread(test);
+    }
+
+    protected void testMultithread(MultithreadConnectionCacheTest test) {
         final CountDownLatch sync = new CountDownLatch(test.getExpectedTotal());
         final CountDownLatch syncConnectionClosed = new CountDownLatch(test
                 .getFails().size());
@@ -160,7 +192,7 @@ public class FixedApnsConnectionCacheTest {
 
             @Override
             public void notificationsResent(int resendCount) {
-                numResent.set(resendCount);
+                numResent.addAndGet(resendCount);
             }
         });
 
@@ -174,6 +206,9 @@ public class FixedApnsConnectionCacheTest {
         test.act(service);
 
         try {
+            Thread.sleep(20000);
+            System.out.println("Mierda");
+            System.out.println(server.getReceivedNotificationIds());
             syncDelivery.await();
             syncConnectionClosed.await();
             sync.await();
@@ -201,8 +236,9 @@ public class FixedApnsConnectionCacheTest {
 
             // Check all notifications have been sent
             Set<Integer> allReceivedIDs = new HashSet<Integer>();
-            allReceivedIDs.addAll(receivedIds.get(0));
-            allReceivedIDs.addAll(receivedIds.get(1));
+            for (int i = 0; i < receivedIds.size(); i++) {
+                allReceivedIDs.addAll(receivedIds.get(i));
+            }
             Assert.assertEquals(test.getExpectedTotal(), allReceivedIDs.size());
 
             // Check there are not repeated notifications
@@ -267,7 +303,7 @@ public class FixedApnsConnectionCacheTest {
 
             @Override
             public void notificationsResent(int resendCount) {
-                numResent.set(resendCount);
+                numResent.addAndGet(resendCount);
             }
         });
 
@@ -346,18 +382,11 @@ public class FixedApnsConnectionCacheTest {
     private ApnsService buildApnsService(ApnsDelegate apnsDelegate) {
         return APNS.newService().withSSLContext(clientContext())
                 .withGatewayDestination(TEST_HOST, TEST_GATEWAY_PORT)
-                .withDelegate(apnsDelegate).build();
+                .withDelegate(apnsDelegate).withCacheLength(50000).build();
     }
 
     public static class ConnectionCacheTest {
-        static EnhancedApnsNotification[] MESSAGES = new EnhancedApnsNotification[100];
-
-        static {
-            for (int i = 0; i < MESSAGES.length; i++) {
-                MESSAGES[i] = new EnhancedApnsNotification(i, 1,
-                        "a87d8878d878a88", "{\"aps\":{}}");
-            }
-        }
+        protected EnhancedApnsNotification[] messages;
 
         private int expectedClosedConnections;
         private int expectedTotal;
@@ -446,9 +475,20 @@ public class FixedApnsConnectionCacheTest {
             return ids;
         }
 
+        protected void prepareMessages(int numMessages) {
+            messages = new EnhancedApnsNotification[numMessages];
+
+            for (int i = 0; i < numMessages; i++) {
+                messages[i] = new EnhancedApnsNotification(i, 1,
+                        "a87d8878d878a88", "{\"aps\":{}}");
+            }
+        }
+
         public void act(ApnsService apnsService) {
+            prepareMessages(expectedTotal);
+
             for (int i = 0; i < expectedTotal; i++) {
-                apnsService.push(MESSAGES[i]);
+                apnsService.push(messages[i]);
             }
         }
 
@@ -469,6 +509,8 @@ public class FixedApnsConnectionCacheTest {
         @Override
         public void act(final ApnsService apnsService) {
             // Prepare notifications
+            prepareMessages(getExpectedTotal());
+
             final ConcurrentHashMap<Integer, List<Integer>> notificationsPerThread = new ConcurrentHashMap<Integer, List<Integer>>();
             for (int i = 0; i < numOfThreads; i++) {
                 notificationsPerThread.put(i, new ArrayList<Integer>());
@@ -520,7 +562,7 @@ public class FixedApnsConnectionCacheTest {
                         for (int id : notifications) {
                             System.out.println("Thread " + thread + " - ID "
                                     + id);
-                            apnsService.push(MESSAGES[id]);
+                            apnsService.push(messages[id]);
                         }
                     }
                 }));
