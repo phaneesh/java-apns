@@ -206,9 +206,6 @@ public class FixedApnsConnectionCacheTest {
         test.act(service);
 
         try {
-            Thread.sleep(20000);
-            System.out.println("Mierda");
-            System.out.println(server.getReceivedNotificationIds());
             syncDelivery.await();
             syncConnectionClosed.await();
             sync.await();
