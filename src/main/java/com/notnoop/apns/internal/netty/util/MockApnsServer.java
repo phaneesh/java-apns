@@ -2,7 +2,6 @@ package com.notnoop.apns.internal.netty.util;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -14,7 +13,6 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.MessageToByteEncoder;
 import io.netty.handler.codec.ReplayingDecoder;
 import io.netty.handler.ssl.SslHandler;
-import io.netty.util.concurrent.GenericFutureListener;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -69,7 +67,8 @@ public class MockApnsServer {
 
         @Override
         protected void decode(final ChannelHandlerContext context,
-                final ByteBuf in, final List<Object> out) {
+                final ByteBuf in, final List<Object> out)
+                throws InterruptedException {
             switch (this.state()) {
             case OPCODE: {
                 final byte opcode = in.readByte();
@@ -155,16 +154,11 @@ public class MockApnsServer {
 
         private void reportErrorAndCloseConnection(
                 final ChannelHandlerContext context, final int notificationId,
-                final DeliveryError errorCode) {
+                final DeliveryError errorCode) throws InterruptedException {
             context.writeAndFlush(new DeliveryResult(errorCode, notificationId))
-                    .addListener(new GenericFutureListener<ChannelFuture>() {
-
-                        @Override
-                        public void operationComplete(ChannelFuture future) {
-                            context.read();
-                            context.close();
-                        }
-                    });
+                    .sync();
+            context.read();
+            context.close().sync();
         }
     }
 
@@ -218,6 +212,7 @@ public class MockApnsServer {
             if (rejection != null) {
                 context.writeAndFlush(rejection).sync();
                 setupNextNotificationsList();
+                context.read();
                 context.close().sync();
                 // context.writeAndFlush(rejection).addListener(
                 // new GenericFutureListener<ChannelFuture>() {
