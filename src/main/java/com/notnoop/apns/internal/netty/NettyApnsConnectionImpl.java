@@ -164,8 +164,6 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                             delegate.messageSent(m, fromBuffer);
                             LOGGER.debug("Message \"{}\" sent (fromBuffer={})",
                                     m, fromBuffer);
-                            if (!fromBuffer)
-                                drainBuffer();
                         }
                     });
                 }
@@ -260,7 +258,6 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     @Override
     public void onChannelClosed(Channel ch) {
         LOGGER.debug("Channel was closed");
-        drainBuffer();
     }
 
     @Override
@@ -302,6 +299,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                         delegate.notificationsResent(cacheStore
                                 .moveCacheToBuffer());
                         delegate.connectionClosed(msg.getError(), msg.getId());
+                        drainBuffer();
                     } finally {
                         if (newCacheLength != null) {
                             delegate.cacheLengthExceeded(newCacheLength);
