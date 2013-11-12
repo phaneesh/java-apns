@@ -1,5 +1,7 @@
 package com.notnoop.apns.internal.netty;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.handler.logging.LogLevel;
@@ -91,7 +93,9 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                     public List<ChannelHandler> getChannelHandlers() {
                         return Arrays.<ChannelHandler> asList(
                                 new LoggingHandler(LogLevel.DEBUG),
-                                new ApnsNotificationEncoder(),
+                                // After some unexplained CastClassExceptions,we handle
+                                // manually the conversion to ByteBuf
+                                /* new ApnsNotificationEncoder(), */
                                 new ApnsResultDecoder(), new ApnsHandler(
                                         NettyApnsConnectionImpl.this));
                     }
@@ -154,7 +158,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                                 LOGGER.debug("Acquiring accessCacheStoreSemaphore in sendMessage");
                                 accessCacheStoreSemaphore.acquire();
                                 LOGGER.debug("Acquired accessCacheStoreSemaphore in sendMessage");
-                                channel.writeAndFlush(m).sync();
+                                write(channel, m);
                                 cacheStore.add(m);
                             } finally {
                                 accessCacheStoreSemaphore.release();
@@ -179,6 +183,14 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                 Utilities.sleep(DELAY_IN_MS);
             }
         }
+    }
+
+    protected static void write(Channel channel, ApnsNotification m)
+            throws InterruptedException {
+        byte[] b = m.marshall();
+        ByteBuf buf = Unpooled.buffer(b.length);
+        buf.writeBytes(b);
+        channel.writeAndFlush(buf).sync();
     }
 
     // We don't use this implementation that sends the message asynchronously,
