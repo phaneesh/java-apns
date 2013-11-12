@@ -317,6 +317,10 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
             LOGGER.warn("Could not handle delivery result, connection must be shutdown");
             allowSendSemaphore.release();
             LOGGER.debug("Released allowSendSemaphore in onDeliveryResult");
+        } catch (Exception e) {
+            LOGGER.error(e.getMessage(), e);
+            allowSendSemaphore.release();
+            LOGGER.debug("Released allowSendSemaphore in onDeliveryResult");
         }
 
     }
