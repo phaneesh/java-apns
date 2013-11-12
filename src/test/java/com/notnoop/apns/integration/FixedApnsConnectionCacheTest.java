@@ -158,6 +158,17 @@ public class FixedApnsConnectionCacheTest {
         testMultithread(test);
     }
 
+    @Test(timeout = 200000)
+    public void test_multithread_complex_no_fails() {
+        MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
+        test.setNumOfThreads(8);
+        test.setExpectedClosedConnections(0);
+        test.setExpectedSent(50000);
+        test.setExpectedTotal(50000);
+
+        testMultithread(test);
+    }
+
     protected void testMultithread(MultithreadConnectionCacheTest test) {
         final CountDownLatch sync = new CountDownLatch(test.getExpectedTotal());
         final CountDownLatch syncConnectionClosed = new CountDownLatch(test
@@ -206,6 +217,9 @@ public class FixedApnsConnectionCacheTest {
         test.act(service);
 
         try {
+            // System.out.println("Waiting...");
+            // Thread.sleep(30000);
+            // System.out.println(server.getReceivedNotificationIds());
             syncDelivery.await();
             syncConnectionClosed.await();
             sync.await();
@@ -239,18 +253,38 @@ public class FixedApnsConnectionCacheTest {
             Assert.assertEquals(test.getExpectedTotal(), allReceivedIDs.size());
 
             // Check there are not repeated notifications
-            for (List<Integer> ids : receivedIds) {
+            for (int i = 0; i < receivedIds.size(); i++) {
+                List<Integer> ids = receivedIds.get(i);
+                boolean isLast = (i == (receivedIds.size() - 1));
+                int idToFail = isLast ? -1 : test.getFailByWhenReceiveID(ids
+                        .get(ids.size() - 1)).idToFail;
+
+                ArrayList<Integer> idsToRemove = new ArrayList<Integer>();
+                boolean failFound = false;
                 for (Integer id : ids) {
-                    Assert.assertTrue("ID " + id + " sent more than one time",
-                            allReceivedIDs.remove(id));
-                    Fail fail = test.getFailByIdToFail(id);
-                    if (fail != null
-                            && fail.failWhenReceive <= test.getExpectedTotal()) {
+                    idsToRemove.add(id);
+                    if (id == idToFail) {
                         // All notifications after that have to be resent in
                         // next connections
+                        failFound = true;
                         break;
                     }
                 }
+
+                // If a fail has not been found and is not the last connection
+                // it means all the notifications in the connection have to be
+                // resent
+                if (failFound || isLast) {
+                    for (Integer id : idsToRemove) {
+                        Assert.assertTrue("ID " + id
+                                + " sent more than one time",
+                                allReceivedIDs.remove(id));
+                    }
+                }
+            }
+
+            for (int id : allReceivedIDs) {
+                System.out.println("ID " + id + " should have been removed");
             }
 
             Assert.assertEquals(0, allReceivedIDs.size());
@@ -312,7 +346,7 @@ public class FixedApnsConnectionCacheTest {
                 .getExpectedTotal());
 
         test.act(service);
-
+        
         try {
             syncDelivery.await();
             syncConnectionClosed.await();
