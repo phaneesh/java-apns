@@ -161,6 +161,7 @@ public class MockApnsServer {
 
                         @Override
                         public void operationComplete(ChannelFuture future) {
+                            context.read();
                             context.close();
                         }
                     });
@@ -267,6 +268,7 @@ public class MockApnsServer {
                         new ApnsPushNotificationDecoder());
                 channel.pipeline().addLast("handler",
                         new MockApnsServerHandler(server));
+                channel.config().setAutoClose(false);
             }
 
         });
