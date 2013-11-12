@@ -215,17 +215,20 @@ public class MockApnsServer {
             }
 
             if (rejection != null) {
-                context.writeAndFlush(rejection).addListener(
-                        new GenericFutureListener<ChannelFuture>() {
-
-                            @Override
-                            public void operationComplete(
-                                    final ChannelFuture future) {
-                                setupNextNotificationsList();
-                                context.close();
-                            }
-
-                        });
+                context.writeAndFlush(rejection).sync();
+                setupNextNotificationsList();
+                context.close().sync();
+                // context.writeAndFlush(rejection).addListener(
+                // new GenericFutureListener<ChannelFuture>() {
+                //
+                // @Override
+                // public void operationComplete(
+                // final ChannelFuture future) {
+                // setupNextNotificationsList();
+                // context.close();
+                // }
+                //
+                // });
             }
 
         }
@@ -311,6 +314,8 @@ public class MockApnsServer {
                 result = null;
 
             if (!resent) {
+                System.out.println("Notification causing countdown "
+                        + receivedNotification);
                 for (final CountDownLatch latch : this.countdownLatches) {
                     latch.countDown();
                 }
@@ -328,8 +333,6 @@ public class MockApnsServer {
 
     private synchronized void addReceivedNotification(
             ApnsNotification receivedNotification) {
-        System.out.println("Adding received notification "
-                + receivedNotification);
         receivedNotifications.get(currentNotificationList.get()).add(
                 receivedNotification);
     }
