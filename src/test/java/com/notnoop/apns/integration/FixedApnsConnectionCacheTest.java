@@ -20,6 +20,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.notnoop.apns.APNS;
 import com.notnoop.apns.ApnsDelegate;
@@ -31,6 +33,8 @@ import com.notnoop.apns.internal.netty.util.MockApnsServer;
 import com.notnoop.apns.utils.FixedCertificates;
 
 public class FixedApnsConnectionCacheTest {
+    private static final Logger LOGGER = LoggerFactory
+            .getLogger(FixedApnsConnectionCacheTest.class);
 
     MockApnsServer server;
 
@@ -217,9 +221,9 @@ public class FixedApnsConnectionCacheTest {
         test.act(service);
 
         try {
-            // System.out.println("Waiting...");
+            // LOGGER.trace("Waiting...");
             // Thread.sleep(30000);
-            // System.out.println(server.getReceivedNotificationIds());
+            // Logger.trace(server.getReceivedNotificationIds().toString());
             syncDelivery.await();
             syncConnectionClosed.await();
             sync.await();
@@ -236,7 +240,7 @@ public class FixedApnsConnectionCacheTest {
         Assert.assertEquals(test.getExpectedClosedConnections(),
                 receivedIds.size() - 1);
 
-        System.out.println(receivedIds);
+        LOGGER.trace(receivedIds.toString());
         if (test.getFails().size() > 0) {
             // Check the last id in each connection is the correct when the fail
             // occurs
@@ -284,7 +288,7 @@ public class FixedApnsConnectionCacheTest {
             }
 
             for (int id : allReceivedIDs) {
-                System.out.println("ID " + id + " should have been removed");
+                LOGGER.error("ID " + id + " should have been removed");
             }
 
             Assert.assertEquals(0, allReceivedIDs.size());
@@ -346,7 +350,7 @@ public class FixedApnsConnectionCacheTest {
                 .getExpectedTotal());
 
         test.act(service);
-        
+
         try {
             syncDelivery.await();
             syncConnectionClosed.await();
@@ -365,7 +369,7 @@ public class FixedApnsConnectionCacheTest {
         Assert.assertEquals(test.getExpectedClosedConnections(),
                 receivedIds.size() - 1);
 
-        System.out.println(receivedIds);
+        LOGGER.trace(receivedIds.toString());
         List<Fail> fails = test.getFails();
         if (fails.size() > 0) {
             Assert.assertEquals(test.getFails().size() + 1, receivedIds.size());
@@ -591,8 +595,7 @@ public class FixedApnsConnectionCacheTest {
                                 .get(thread);
 
                         for (int id : notifications) {
-                            System.out.println("Thread " + thread + " - ID "
-                                    + id);
+                            LOGGER.trace("Thread " + thread + " - ID " + id);
                             apnsService.push(messages[id]);
                         }
                     }
