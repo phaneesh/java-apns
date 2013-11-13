@@ -165,7 +165,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                             }
 
                             delegate.messageSent(m, fromBuffer);
-                            LOGGER.debug("Message \"{}\" sent (fromBuffer={})",
+                            LOGGER.trace("Message \"{}\" sent (fromBuffer={})",
                                     m, fromBuffer);
                         }
                     });

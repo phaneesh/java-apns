@@ -63,10 +63,10 @@ public class CacheStoreImpl implements CacheStore {
     @Override
     public void add(ApnsNotification notification) {
         cachedNotifications.add(notification);
-        LOGGER.debug("Added notification to cache {}", notification);
+        LOGGER.trace("Added notification to cache {}", notification);
         while (cachedNotifications.size() > cacheLength) {
             ApnsNotification removedNotification = cachedNotifications.poll();
-            LOGGER.debug("Removing notification from cache {}",
+            LOGGER.trace("Removing notification from cache {}",
                     removedNotification);
         }
     }
@@ -98,7 +98,7 @@ public class CacheStoreImpl implements CacheStore {
     public synchronized void drain(Drainer drainer) {
         ApnsNotification notification = null;
         while ((notification = notificationsBuffer.poll()) != null) {
-            LOGGER.debug("Resending notification {} from buffer",
+            LOGGER.trace("Resending notification {} from buffer",
                     notification.getIdentifier());
             try {
                 drainer.process(notification);
