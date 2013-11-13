@@ -100,7 +100,12 @@ public class CacheStoreImpl implements CacheStore {
         while ((notification = notificationsBuffer.poll()) != null) {
             LOGGER.debug("Resending notification {} from buffer",
                     notification.getIdentifier());
-            drainer.process(notification);
+            try {
+                drainer.process(notification);
+            } catch (Exception e) {
+                LOGGER.error("Failed to resend notification " + notification
+                        + " from buffer", e);
+            }
         }
     }
 

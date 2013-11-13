@@ -32,7 +32,6 @@ import com.notnoop.apns.internal.netty.channel.ChannelProvider;
 import com.notnoop.apns.internal.netty.channel.ChannelProvider.ChannelClosedListener;
 import com.notnoop.apns.internal.netty.channel.ChannelProvider.ChannelHandlersProvider;
 import com.notnoop.apns.internal.netty.channel.ChannelProvider.WithChannelAction;
-import com.notnoop.apns.internal.netty.encoding.ApnsNotificationEncoder;
 import com.notnoop.apns.internal.netty.encoding.ApnsResultDecoder;
 import com.notnoop.exceptions.ApnsDeliveryErrorException;
 import com.notnoop.exceptions.NetworkIOException;
