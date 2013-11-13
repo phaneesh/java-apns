@@ -27,12 +27,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.notnoop.apns.ApnsNotification;
 import com.notnoop.apns.DeliveryError;
 import com.notnoop.apns.DeliveryResult;
 import com.notnoop.apns.EnhancedApnsNotification;
 
 public class MockApnsServer {
+
+    private static final Logger LOGGER = LoggerFactory
+            .getLogger(MockApnsServer.class);
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -189,21 +195,20 @@ public class MockApnsServer {
         @Override
         protected void channelRead0(final ChannelHandlerContext context,
                 ApnsNotification receivedNotification) throws Exception {
-            System.out.println("RECEIVED " + receivedNotification);
+            LOGGER.trace("RECEIVED " + receivedNotification);
             final DeliveryResult rejection;
 
             synchronized (this) {
                 if (!this.rejectFutureMessages) {
                     rejection = this.server
                             .handleReceivedNotification(receivedNotification);
-                    System.out.println("Notification handled "
-                            + receivedNotification);
+                    LOGGER.trace("Notification handled " + receivedNotification);
 
                     if (rejection != null) {
                         this.rejectFutureMessages = true;
                     }
                 } else {
-                    System.out.println("Notification rejected "
+                    LOGGER.trace("Notification rejected "
                             + receivedNotification);
                     return;
                 }
@@ -306,12 +311,12 @@ public class MockApnsServer {
             final DeliveryResult result;
             if (fails.containsKey(receivedNotification.getIdentifier())) {
                 result = fails.remove(receivedNotification.getIdentifier());
-                System.err.println("Causing failure...");
+                LOGGER.debug("Causing failure...");
             } else
                 result = null;
 
             if (!resent) {
-                System.out.println("Notification causing countdown "
+                LOGGER.trace("Notification causing countdown "
                         + receivedNotification);
                 for (final CountDownLatch latch : this.countdownLatches) {
                     latch.countDown();

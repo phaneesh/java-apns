@@ -91,7 +91,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                     @Override
                     public List<ChannelHandler> getChannelHandlers() {
                         return Arrays.<ChannelHandler> asList(
-                                new LoggingHandler(LogLevel.DEBUG),
+                                new LoggingHandler(LogLevel.TRACE),
                                 // After some unexplained CastClassExceptions,we handle
                                 // manually the conversion to ByteBuf
                                 /* new ApnsNotificationEncoder(), */
@@ -149,19 +149,19 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                         @Override
                         public void perform(Channel channel) throws Exception {
                             try {
-                                LOGGER.debug("Acquiring allowSendSemaphore in sendMessage");
+                                LOGGER.trace("Acquiring allowSendSemaphore in sendMessage");
                                 allowSendSemaphore.acquire();
-                                LOGGER.debug("Acquired allowSendSemaphore in sendMessage");
+                                LOGGER.trace("Acquired allowSendSemaphore in sendMessage");
                                 allowSendSemaphore.release();
-                                LOGGER.debug("Released allowSendSemaphore in sendMessage");
-                                LOGGER.debug("Acquiring accessCacheStoreSemaphore in sendMessage");
+                                LOGGER.trace("Released allowSendSemaphore in sendMessage");
+                                LOGGER.trace("Acquiring accessCacheStoreSemaphore in sendMessage");
                                 accessCacheStoreSemaphore.acquire();
-                                LOGGER.debug("Acquired accessCacheStoreSemaphore in sendMessage");
+                                LOGGER.trace("Acquired accessCacheStoreSemaphore in sendMessage");
                                 write(channel, m);
                                 cacheStore.add(m);
                             } finally {
                                 accessCacheStoreSemaphore.release();
-                                LOGGER.debug("Released accessCacheStoreSemaphore in sendMessage");
+                                LOGGER.trace("Released accessCacheStoreSemaphore in sendMessage");
                             }
 
                             delegate.messageSent(m, fromBuffer);
@@ -273,9 +273,9 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
 
     @Override
     public void onDeliveryResult(final DeliveryResult msg) {
-        LOGGER.debug("Acquiring allowSendSemaphore in onDeliveryResult");
+        LOGGER.trace("Acquiring allowSendSemaphore in onDeliveryResult");
         allowSendSemaphore.acquireUninterruptibly();
-        LOGGER.debug("Acquired allowSendSemaphore in onDeliveryResult");
+        LOGGER.trace("Acquired allowSendSemaphore in onDeliveryResult");
         try {
             deliveryResultExecutorService.submit(new Runnable() {
 
@@ -283,9 +283,9 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                 public void run() {
                     Integer newCacheLength = null;
                     try {
-                        LOGGER.debug("Acquiring accessCacheStoreSemaphore in onDeliveryResult");
+                        LOGGER.trace("Acquiring accessCacheStoreSemaphore in onDeliveryResult");
                         accessCacheStoreSemaphore.acquireUninterruptibly();
-                        LOGGER.debug("Acquired accessCacheStoreSemaphore in onDeliveryResult");
+                        LOGGER.trace("Acquired accessCacheStoreSemaphore in onDeliveryResult");
                         Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
                         ApnsNotification notification = cacheStore
                                 .removeAllBefore(msg, tempCache);
@@ -316,20 +316,20 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                             delegate.cacheLengthExceeded(newCacheLength);
                         }
                         accessCacheStoreSemaphore.release();
-                        LOGGER.debug("Released accessCacheStoreSemaphore in onDeliveryResult");
+                        LOGGER.trace("Released accessCacheStoreSemaphore in onDeliveryResult");
                         allowSendSemaphore.release();
-                        LOGGER.debug("Released allowSendSemaphore in onDeliveryResult");
+                        LOGGER.trace("Released allowSendSemaphore in onDeliveryResult");
                     }
                 }
             });
         } catch (RejectedExecutionException e) {
             LOGGER.warn("Could not handle delivery result, connection must be shutdown");
             allowSendSemaphore.release();
-            LOGGER.debug("Released allowSendSemaphore in onDeliveryResult");
+            LOGGER.trace("Released allowSendSemaphore in onDeliveryResult");
         } catch (Exception e) {
             LOGGER.error(e.getMessage(), e);
             allowSendSemaphore.release();
-            LOGGER.debug("Released allowSendSemaphore in onDeliveryResult");
+            LOGGER.trace("Released allowSendSemaphore in onDeliveryResult");
         }
 
     }
