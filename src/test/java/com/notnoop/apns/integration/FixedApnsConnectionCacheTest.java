@@ -121,7 +121,8 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test(timeout = 10000)
+    @Test(timeout = 5000)
+    @Ignore
     public void test_multithread() {
         MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
         test.setNumOfThreads(4);
