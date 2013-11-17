@@ -120,7 +120,7 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 10000)
     public void test_multithread() {
         MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
         test.setNumOfThreads(4);
@@ -132,7 +132,7 @@ public class FixedApnsConnectionCacheTest {
         testMultithread(test);
     }
 
-    @Test(timeout = 200000)
+    @Test(timeout = 400000)
     public void test_multithread_complex() {
         MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
         test.setNumOfThreads(8);
