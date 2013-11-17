@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -132,7 +133,8 @@ public class FixedApnsConnectionCacheTest {
         testMultithread(test);
     }
 
-    @Test(timeout = 400000)
+    @Test(timeout = 200000)
+    @Ignore
     public void test_multithread_complex() {
         MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
         test.setNumOfThreads(8);
