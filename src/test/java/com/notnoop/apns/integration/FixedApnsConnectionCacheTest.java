@@ -122,7 +122,7 @@ public class FixedApnsConnectionCacheTest {
         test(test);
     }
 
-    @Test(timeout = 5000)
+    @Test(timeout = 45000)
     // @Ignore
     public void test_multithread() {
         MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
@@ -135,7 +135,7 @@ public class FixedApnsConnectionCacheTest {
         testMultithread(test);
     }
 
-    @Test(timeout = 500000)
+    @Test(timeout = 540000)
     // @Ignore
     public void test_multithread_complex() {
         MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
@@ -166,7 +166,7 @@ public class FixedApnsConnectionCacheTest {
         testMultithread(test);
     }
 
-    @Test(timeout = 200000)
+    @Test(timeout = 240000)
     public void test_multithread_complex_no_fails() {
         MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
         test.setNumOfThreads(8);
@@ -225,10 +225,10 @@ public class FixedApnsConnectionCacheTest {
         test.act(service);
 
         try {
-//            LOGGER.trace("Waiting...");
-//            Thread.sleep(40000);
-//            LOGGER.trace("IDs...");
-//            LOGGER.trace(server.getReceivedNotificationIds().toString());
+            LOGGER.trace("Waiting...");
+            Thread.sleep(40000);
+            LOGGER.trace("IDs...");
+            LOGGER.trace(server.getReceivedNotificationIds().toString());
             LOGGER.debug("Waiting for all messages to be sent");
             syncDelivery.await();
             syncConnectionClosed.await();
