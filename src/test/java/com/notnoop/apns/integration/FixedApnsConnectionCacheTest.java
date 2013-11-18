@@ -229,6 +229,7 @@ public class FixedApnsConnectionCacheTest {
 //            Thread.sleep(40000);
 //            LOGGER.trace("IDs...");
 //            LOGGER.trace(server.getReceivedNotificationIds().toString());
+            LOGGER.debug("Waiting for all messages to be sent");
             syncDelivery.await();
             syncConnectionClosed.await();
             sync.await();
