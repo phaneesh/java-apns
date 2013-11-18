@@ -225,10 +225,10 @@ public class FixedApnsConnectionCacheTest {
         test.act(service);
 
         try {
-            LOGGER.trace("Waiting...");
-            Thread.sleep(40000);
-            LOGGER.trace("IDs...");
-            LOGGER.trace(server.getReceivedNotificationIds().toString());
+//            LOGGER.trace("Waiting...");
+//            Thread.sleep(40000);
+//            LOGGER.trace("IDs...");
+//            LOGGER.trace(server.getReceivedNotificationIds().toString());
             syncDelivery.await();
             syncConnectionClosed.await();
             sync.await();
