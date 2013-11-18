@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Date;
@@ -16,6 +17,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.net.ssl.SSLContext;
@@ -39,7 +41,7 @@ public class MockApnsServer {
     private final AtomicInteger currentNotificationList = new AtomicInteger(-1);
     private final List<List<ApnsNotification>> receivedNotifications = new CopyOnWriteArrayList<>();
     private final Vector<CountDownLatch> countdownLatches;
-    private final ExecutorService executor = Executors.newFixedThreadPool(8);
+    private final ExecutorService executor = Executors.newFixedThreadPool(10);
 
     private SSLServerSocket serverSocket;
     private SSLContext sslContext;
@@ -73,22 +75,40 @@ public class MockApnsServer {
                 serverSocket = (SSLServerSocket) sslContext
                         .getServerSocketFactory().createServerSocket(port);
                 LOGGER.info("Server socket bound to port " + port);
+            } catch (IOException e) {
+                LOGGER.error("Error bounding server socket to port " + port
+                        + ": " + e.getMessage(), e);
+                return;
+            }
 
-                for (;;) {
-                    // Listen for connections
-                    final SSLSocket socket = (SSLSocket) serverSocket.accept();
-                    // handle connection
+            for (;;) {
+                // Listen for connections
+                final SSLSocket socket;
+                try {
+                    socket = (SSLSocket) serverSocket.accept();
+                } catch (SocketException e) {
+                    LOGGER.trace("Socket closed");
+                    return;
+                } catch (IOException e) {
+                    LOGGER.error(
+                            "Error accepting connection: " + e.getMessage(), e);
+                    return;
+                }
+
+                // handle connection
+                try {
                     executor.execute(new Runnable() {
                         @Override
                         public void run() {
-                            new SocketHandler(server).handle(socket);
+                            new SocketHandler(server, socket).handle();
                         }
                     });
+                } catch (RejectedExecutionException e) {
+                    LOGGER.warn("Rejected execution to handle connection");
+                    return;
                 }
-            } catch (IOException e) {
-                LOGGER.error("Error bounding server socket to port " + port);
-                throw new RuntimeException(e);
             }
+
         }
     }
 
@@ -186,17 +206,17 @@ public class MockApnsServer {
 
         private boolean rejectFutureMessages = false;
         private final MockApnsServer server;
+        private final Socket socket;
 
-        public SocketHandler(MockApnsServer server) {
+        public SocketHandler(MockApnsServer server, Socket socket) {
             this.server = server;
+            this.socket = socket;
         }
 
-        public void handle(Socket socket) {
+        public void handle() {
             InputStream in = null;
-            OutputStream out = null;
             try {
                 in = socket.getInputStream();
-                out = socket.getOutputStream();
 
                 // Read from input
                 while (true) {
@@ -207,7 +227,7 @@ public class MockApnsServer {
                         LOGGER.trace("EOF received while reading command");
                         break;
                     } else if (command != 1) {
-                        reportErrorAndCloseConnection(out, new byte[] { 0 },
+                        reportErrorAndCloseConnection(new byte[] { 0 },
                                 DeliveryError.UNKNOWN);
                         break;
                     }
@@ -240,7 +260,7 @@ public class MockApnsServer {
                     int tokenLenghtInt = ByteBuffer.wrap(tokenLength)
                             .getShort();
                     if (tokenLenghtInt == 0) {
-                        this.reportErrorAndCloseConnection(out, identifier,
+                        this.reportErrorAndCloseConnection(identifier,
                                 DeliveryError.MISSING_DEVICE_TOKEN);
                         break;
                     }
@@ -264,7 +284,7 @@ public class MockApnsServer {
 
                     if (payloadLengthInt > MAX_PAYLOAD_SIZE
                             || payloadLengthInt == 0) {
-                        this.reportErrorAndCloseConnection(out, identifier,
+                        this.reportErrorAndCloseConnection(identifier,
                                 DeliveryError.INVALID_PAYLOAD_SIZE);
                     }
 
@@ -279,45 +299,50 @@ public class MockApnsServer {
                             ByteBuffer.wrap(identifier).getInt(),
                             (int) (expiration.getTime() / 1000), token, payload);
 
-                    if (!handleNotification(out, notification))
+                    if (!handleNotification(notification))
                         break;
                 }
             } catch (Exception e) {
                 LOGGER.error(e.getMessage(), e);
             } finally {
                 try {
-                    LOGGER.trace("Closing socket...");
-                    socket.close();
+                    if (!socket.isClosed()) {
+                        LOGGER.trace("Closing socket...");
+                        socket.close();
+                    }
                 } catch (IOException e) {
                 }
             }
         }
 
-        private boolean handleNotification(OutputStream out,
-                ApnsNotification receivedNotification) throws IOException {
-            LOGGER.trace("RECEIVED " + receivedNotification);
+        private boolean handleNotification(ApnsNotification receivedNotification)
+                throws IOException {
+            LOGGER.trace("RECEIVED {}", receivedNotification);
             final DeliveryResult rejection;
 
             synchronized (this) {
                 if (!this.rejectFutureMessages) {
                     rejection = this.server
                             .handleReceivedNotification(receivedNotification);
-                    LOGGER.trace("Notification handled " + receivedNotification);
+                    LOGGER.trace("Notification handled {}",
+                            receivedNotification);
 
                     if (rejection != null) {
                         this.rejectFutureMessages = true;
                     }
                 } else {
-                    LOGGER.trace("Notification rejected "
-                            + receivedNotification);
+                    LOGGER.trace("Notification rejected {}",
+                            receivedNotification);
                     return true;
                 }
             }
 
             if (rejection != null) {
-                reportErrorAndCloseConnection(out, ByteBuffer.allocate(4)
-                        .putInt(rejection.getId()).array(),
-                        rejection.getError());
+                LOGGER.trace("Sending rejection for Id={}; after receiving {}",
+                        rejection.getId(), receivedNotification);
+                reportErrorAndCloseConnection(
+                        ByteBuffer.allocate(4).putInt(rejection.getId())
+                                .array(), rejection.getError());
                 server.setupNextNotificationsList();
                 return false;
             }
@@ -325,15 +350,18 @@ public class MockApnsServer {
             return true;
         }
 
-        private void reportErrorAndCloseConnection(OutputStream outputStream,
-                final byte[] notificationId, final DeliveryError errorCode)
-                throws IOException {
+        private void reportErrorAndCloseConnection(final byte[] notificationId,
+                final DeliveryError errorCode) throws IOException {
+            OutputStream outputStream = socket.getOutputStream();
+
             ByteArrayOutputStream response = new ByteArrayOutputStream();
             response.write(8);
             response.write(errorCode.code());
             response.write(notificationId);
 
             outputStream.write(response.toByteArray());
+            
+            LOGGER.trace("Closing connection...");
             outputStream.close();
         }
     }
