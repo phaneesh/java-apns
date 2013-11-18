@@ -20,7 +20,9 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,9 +41,13 @@ public class FixedApnsConnectionCacheTest {
             .getLogger(FixedApnsConnectionCacheTest.class);
 
     MockApnsServer server;
-
+    
+    @Rule
+    public TestName testName = new TestName();
+    
     @Before
     public void startup() throws InterruptedException {
+        LOGGER.info("**** TEST START " + testName.getMethodName() + " ****");
         server = new MockApnsServer(TEST_GATEWAY_PORT,
                 FixedCertificates.serverContext());
         server.start();
@@ -51,6 +57,7 @@ public class FixedApnsConnectionCacheTest {
     public void tearDown() throws Exception {
         server.shutdown();
         server = null;
+        LOGGER.info("**** TEST FINISH " + testName.getMethodName() + " ****");
     }
 
     @Test(timeout = 5000)
