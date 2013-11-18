@@ -30,8 +30,9 @@ import com.notnoop.apns.ApnsNotification;
 import com.notnoop.apns.ApnsService;
 import com.notnoop.apns.DeliveryError;
 import com.notnoop.apns.EnhancedApnsNotification;
-import com.notnoop.apns.internal.netty.util.MockApnsServer;
+//import com.notnoop.apns.internal.netty.util.MockApnsServer;
 import com.notnoop.apns.utils.FixedCertificates;
+import com.notnoop.apns.utils.MockApnsServer;
 
 public class FixedApnsConnectionCacheTest {
     private static final Logger LOGGER = LoggerFactory
@@ -122,7 +123,7 @@ public class FixedApnsConnectionCacheTest {
     }
 
     @Test(timeout = 5000)
-    @Ignore
+    // @Ignore
     public void test_multithread() {
         MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
         test.setNumOfThreads(4);
@@ -135,7 +136,7 @@ public class FixedApnsConnectionCacheTest {
     }
 
     @Test(timeout = 200000)
-    @Ignore
+    // @Ignore
     public void test_multithread_complex() {
         MultithreadConnectionCacheTest test = new MultithreadConnectionCacheTest();
         test.setNumOfThreads(8);
@@ -224,9 +225,10 @@ public class FixedApnsConnectionCacheTest {
         test.act(service);
 
         try {
-            // LOGGER.trace("Waiting...");
-            // Thread.sleep(30000);
-            // Logger.trace(server.getReceivedNotificationIds().toString());
+            LOGGER.trace("Waiting...");
+            Thread.sleep(40000);
+            LOGGER.trace("IDs...");
+            LOGGER.trace(server.getReceivedNotificationIds().toString());
             syncDelivery.await();
             syncConnectionClosed.await();
             sync.await();
