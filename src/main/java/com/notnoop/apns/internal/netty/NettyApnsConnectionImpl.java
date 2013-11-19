@@ -92,7 +92,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                     public List<ChannelHandler> getChannelHandlers() {
                         return Arrays.<ChannelHandler> asList(
                                 new LoggingHandler(LogLevel.TRACE),
-                                // After some unexplained CastClassExceptions,we handle
+                                // After some unexplained CastClassExceptions,we
+                                // handle
                                 // manually the conversion to ByteBuf
                                 /* new ApnsNotificationEncoder(), */
                                 new ApnsResultDecoder(), new ApnsHandler(
@@ -273,9 +274,11 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
 
     @Override
     public void onDeliveryResult(final DeliveryResult msg) {
+        // We don't allow to send more messages
         LOGGER.trace("Acquiring allowSendSemaphore in onDeliveryResult");
         allowSendSemaphore.acquireUninterruptibly();
         LOGGER.trace("Acquired allowSendSemaphore in onDeliveryResult");
+
         try {
             deliveryResultExecutorService.submit(new Runnable() {
 
@@ -283,9 +286,13 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                 public void run() {
                     Integer newCacheLength = null;
                     try {
+                        // Wait if there is a flying send operation to put the
+                        // notification in cache, it will be resent
                         LOGGER.trace("Acquiring accessCacheStoreSemaphore in onDeliveryResult");
                         accessCacheStoreSemaphore.acquireUninterruptibly();
                         LOGGER.trace("Acquired accessCacheStoreSemaphore in onDeliveryResult");
+
+                        // Move to the buffer all the notifications sent after the fail
                         Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
                         ApnsNotification notification = cacheStore
                                 .removeAllBefore(msg, tempCache);
@@ -310,6 +317,18 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                         delegate.notificationsResent(cacheStore
                                 .moveCacheToBuffer());
                         delegate.connectionClosed(msg.getError(), msg.getId());
+
+                        // The current connection is closed or is to be closed,
+                        // so we enforce to use a new one for next notifications
+                        try {
+                            channelProvider.close();
+                        } catch (IOException e) {
+                            LOGGER.error(
+                                    "Could not close connection: "
+                                            + e.getMessage(), e);
+                        }
+                        
+                        // Drain the buffer to resend the notifications
                         drainBuffer();
                     } finally {
                         if (newCacheLength != null) {
