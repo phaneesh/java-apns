@@ -36,7 +36,7 @@ public class ApnsHandlerTest {
         DeliveryResult msg = new DeliveryResult(DeliveryError.INVALID_TOKEN,
                 1234);
         apnsHandler.channelRead0(ctx, msg);
-        verify(listener).onDeliveryResult(ctx, eq(msg));
+        verify(listener).onDeliveryResult(eq(ctx), eq(msg));
     }
 
 }
