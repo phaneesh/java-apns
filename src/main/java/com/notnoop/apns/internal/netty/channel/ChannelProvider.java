@@ -28,6 +28,14 @@ public interface ChannelProvider {
      */
     void close() throws IOException;
 
+    /**
+     * Closes the provided channel
+     * 
+     * @param channel
+     * @return
+     */
+    void close(Channel channel) throws IOException;
+
     void runWithChannel(WithChannelAction action) throws Exception;
 
     public static interface WithChannelAction {
@@ -69,4 +77,5 @@ public interface ChannelProvider {
         void onChannelClosed(Channel ch);
 
     }
+
 }

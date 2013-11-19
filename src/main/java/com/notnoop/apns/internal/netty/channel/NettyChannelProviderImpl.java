@@ -85,7 +85,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         Channel channel = null;
         if (channelFuture != null
                 && (channel = channelFuture.channel()) != null) {
-            try {                
+            try {
                 LOGGER.debug("Sync-closing channel...");
                 channel.close().sync();
                 LOGGER.debug("Channel closed");
@@ -96,10 +96,26 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
     }
 
     @Override
+    public void close(Channel channel) throws IOException {
+        final ChannelFuture channelFuture = channelFutureReference.get();
+        if (channelFuture != null && channelFuture.channel() == channel) {
+            channelFutureReference.set(null);
+        }
+
+        try {
+            LOGGER.debug("Sync-closing channel...");
+            channel.close().sync();
+            LOGGER.debug("Channel closed");
+        } catch (InterruptedException e) {
+            LOGGER.error("Error while closing", e);
+        }
+    }
+
+    @Override
     public void runWithChannel(WithChannelAction action) throws Exception {
         Channel channel = getChannel();
         try {
-            action.perform(channel);   
+            action.perform(channel);
         } catch (Exception e) {
             channel.read();
             throw e;

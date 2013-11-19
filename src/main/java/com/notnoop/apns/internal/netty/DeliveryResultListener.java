@@ -1,5 +1,7 @@
 package com.notnoop.apns.internal.netty;
 
+import io.netty.channel.ChannelHandlerContext;
+
 import com.notnoop.apns.DeliveryResult;
 
 /**
@@ -10,6 +12,6 @@ import com.notnoop.apns.DeliveryResult;
  */
 public interface DeliveryResultListener {
 
-    void onDeliveryResult(DeliveryResult msg);
+    void onDeliveryResult(ChannelHandlerContext ctx, DeliveryResult msg);
 
 }

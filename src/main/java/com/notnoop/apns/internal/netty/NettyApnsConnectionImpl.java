@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 
@@ -273,7 +274,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     }
 
     @Override
-    public void onDeliveryResult(final DeliveryResult msg) {
+    public void onDeliveryResult(final ChannelHandlerContext ctx,
+            final DeliveryResult msg) {
         // We don't allow to send more messages
         LOGGER.trace("Acquiring allowSendSemaphore in onDeliveryResult");
         allowSendSemaphore.acquireUninterruptibly();
@@ -292,7 +294,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                         accessCacheStoreSemaphore.acquireUninterruptibly();
                         LOGGER.trace("Acquired accessCacheStoreSemaphore in onDeliveryResult");
 
-                        // Move to the buffer all the notifications sent after the fail
+                        // Move to the buffer all the notifications sent after
+                        // the fail
                         Queue<ApnsNotification> tempCache = new LinkedList<ApnsNotification>();
                         ApnsNotification notification = cacheStore
                                 .removeAllBefore(msg, tempCache);
@@ -321,13 +324,13 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                         // The current connection is closed or is to be closed,
                         // so we enforce to use a new one for next notifications
                         try {
-                            channelProvider.close();
+                            channelProvider.close(ctx.channel());
                         } catch (IOException e) {
                             LOGGER.error(
                                     "Could not close connection: "
                                             + e.getMessage(), e);
                         }
-                        
+
                         // Drain the buffer to resend the notifications
                         drainBuffer();
                     } finally {

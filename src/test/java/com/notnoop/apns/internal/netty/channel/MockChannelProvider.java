@@ -27,9 +27,22 @@ public class MockChannelProvider extends AbstractChannelProvider {
         return currentChannel;
     }
 
+    public void close(Channel channel) {
+        if (currentChannel == channel) {
+            currentChannel = null;
+        }
+        try {
+            LOGGER.info("Closing channel");
+            channel.close().sync();
+        } catch (InterruptedException e) {
+            LOGGER.error("Interrupted while closing", e);
+        }
+    }
+
     @Override
     public void close() throws IOException {
         try {
+            LOGGER.info("Closing channel");
             currentChannel.close().sync();
         } catch (InterruptedException e) {
             LOGGER.error("Interrupted while closing", e);
@@ -37,7 +50,8 @@ public class MockChannelProvider extends AbstractChannelProvider {
     }
 
     @Override
-    public synchronized void runWithChannel(WithChannelAction action) throws Exception {
+    public synchronized void runWithChannel(WithChannelAction action)
+            throws Exception {
         Channel channel = getChannel();
         action.perform(channel);
     }
