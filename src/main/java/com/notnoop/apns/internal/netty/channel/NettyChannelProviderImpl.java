@@ -85,13 +85,8 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         Channel channel = null;
         if (channelFuture != null
                 && (channel = channelFuture.channel()) != null) {
-            try {
-                LOGGER.debug("Sync-closing channel...");
-                channel.close().sync();
-                LOGGER.debug("Channel closed");
-            } catch (InterruptedException e) {
-                LOGGER.error("Error while closing", e);
-            }
+            LOGGER.debug("Async-closing channel...");
+            channel.close();
         }
     }
 
@@ -102,13 +97,8 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
             channelFutureReference.set(null);
         }
 
-        try {
-            LOGGER.debug("Sync-closing channel...");
-            channel.close().sync();
-            LOGGER.debug("Channel closed");
-        } catch (InterruptedException e) {
-            LOGGER.error("Error while closing", e);
-        }
+        LOGGER.debug("Async-closing channel...");
+        channel.close();
     }
 
     @Override

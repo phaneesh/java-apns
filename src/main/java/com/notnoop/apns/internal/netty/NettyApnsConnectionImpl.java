@@ -319,7 +319,6 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
 
                         delegate.notificationsResent(cacheStore
                                 .moveCacheToBuffer());
-                        delegate.connectionClosed(msg.getError(), msg.getId());
 
                         // The current connection is closed or is to be closed,
                         // so we enforce to use a new one for next notifications
@@ -330,6 +329,8 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                                     "Could not close connection: "
                                             + e.getMessage(), e);
                         }
+                        
+                        delegate.connectionClosed(msg.getError(), msg.getId());
 
                         // Drain the buffer to resend the notifications
                         drainBuffer();
