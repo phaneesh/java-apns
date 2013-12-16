@@ -109,17 +109,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     public synchronized void close() throws IOException {
         LOGGER.debug("Closing netty APNS connection");
         LOGGER.debug("Issuing drainBuffer request...");
-        drainBuffer();
-        // LOGGER.debug("1st close of channel...");
-        // channelProvider.close();
-        LOGGER.debug("Shutdown of single-thread executor service for drain buffer...");
-        drainBufferExecutorService.shutdown();
-        try {
-            LOGGER.debug("Waiting termination of single-thread executor service for drain buffer...");
-            drainBufferExecutorService.awaitTermination(30, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            LOGGER.error("Termination did not complete in 30 seconds");
-        }
+
         LOGGER.debug("Shutdown of single-thread executor service for handling delivery results...");
         deliveryResultExecutorService.shutdown();
         try {
@@ -130,9 +120,17 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
             LOGGER.error("Termination did not complete in 30 seconds");
         }
 
-        LOGGER.debug("2nd close of channel...");
-        channelProvider.close();
+        LOGGER.debug("Shutdown of single-thread executor service for drain buffer...");
+        drainBufferExecutorService.shutdown();
+        try {
+            LOGGER.debug("Waiting termination of single-thread executor service for drain buffer...");
+            drainBufferExecutorService.awaitTermination(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            LOGGER.error("Termination did not complete in 30 seconds");
+        }
 
+        LOGGER.debug("Close of channel...");
+        channelProvider.close();
     }
 
     @Override
@@ -194,60 +192,6 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
         channel.writeAndFlush(buf).sync();
     }
 
-    // We don't use this implementation that sends the message asynchronously,
-    // we want this to be sync
-    // @Override
-    // public void sendMessage(final ApnsNotification m) throws
-    // NetworkIOException {
-    // executorService.submit(new Runnable() {
-    // @Override
-    // public void run() {
-    // sendMessage(m, false, 0);
-    // }
-    // });
-    // }
-    //
-    // protected void sendMessage(final ApnsNotification m,
-    // final boolean fromBuffer, final int retries) {
-    //
-    // channelProvider.runWithChannel(new WithChannelAction() {
-    // @Override
-    // public void perform(Channel channel) {
-    // cacheStore.add(m);
-    // channel.writeAndFlush(m).addListener(
-    // new ChannelFutureListener() {
-    //
-    // @Override
-    // public void operationComplete(ChannelFuture future)
-    // throws Exception {
-    // if (future.isSuccess()) {
-    // delegate.messageSent(m, fromBuffer);
-    // LOGGER.debug(
-    // "Message \"{}\" sent (fromBuffer={})",
-    // m, fromBuffer);
-    // if (!fromBuffer)
-    // drainBuffer();
-    // } else {
-    // if (retries > RETRIES) {
-    // LOGGER.error("Max retries for {}", m);
-    // }
-    // executorService.submit(new Runnable() {
-    //
-    // @Override
-    // public void run() {
-    // sendMessage(m, fromBuffer,
-    // retries + 1);
-    // }
-    // });
-    // }
-    // }
-    // });
-    //
-    // }
-    // });
-    //
-    // }
-
     private void drainBuffer() {
         try {
             drainBufferExecutorService.submit(new Runnable() {
@@ -264,7 +208,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                 }
             });
         } catch (RejectedExecutionException e) {
-            LOGGER.warn("Could not drain buffer, connection must be shutdown");
+            LOGGER.warn("Execution of draining buffer rejected, connection must be shutdown");
         }
     }
 
@@ -278,7 +222,11 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
             final DeliveryResult msg) {
         // We don't allow to send more messages
         LOGGER.trace("Acquiring allowSendSemaphore in onDeliveryResult");
-        allowSendSemaphore.acquireUninterruptibly();
+        try {
+            allowSendSemaphore.acquire();
+        } catch (InterruptedException e) {
+            Utilities.wrapAndThrowAsRuntimeException(e);
+        }
         LOGGER.trace("Acquired allowSendSemaphore in onDeliveryResult");
 
         try {
@@ -291,7 +239,11 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                         // Wait if there is a flying send operation to put the
                         // notification in cache, it will be resent
                         LOGGER.trace("Acquiring accessCacheStoreSemaphore in onDeliveryResult");
-                        accessCacheStoreSemaphore.acquireUninterruptibly();
+                        try {
+                            accessCacheStoreSemaphore.acquire();
+                        } catch (InterruptedException e) {
+                            Utilities.wrapAndThrowAsRuntimeException(e);
+                        }
                         LOGGER.trace("Acquired accessCacheStoreSemaphore in onDeliveryResult");
 
                         // Move to the buffer all the notifications sent after
@@ -329,7 +281,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                                     "Could not close connection: "
                                             + e.getMessage(), e);
                         }
-                        
+
                         delegate.connectionClosed(msg.getError(), msg.getId());
 
                         // Drain the buffer to resend the notifications
@@ -346,7 +298,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                 }
             });
         } catch (RejectedExecutionException e) {
-            LOGGER.warn("Could not handle delivery result, connection must be shutdown");
+            LOGGER.warn("Execution of handling delivery result rejected, connection must be shutdown");
             allowSendSemaphore.release();
             LOGGER.trace("Released allowSendSemaphore in onDeliveryResult");
         } catch (Exception e) {

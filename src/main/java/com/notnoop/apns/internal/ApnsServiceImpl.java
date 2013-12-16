@@ -30,27 +30,39 @@
  */
 package com.notnoop.apns.internal;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import com.notnoop.apns.ApnsNotification;
+import com.notnoop.exceptions.ApnsServiceClosedException;
 import com.notnoop.exceptions.NetworkIOException;
 
 public class ApnsServiceImpl extends AbstractApnsService {
+    private AtomicBoolean closed = new AtomicBoolean(false);
     private ApnsConnection connection;
 
-    public ApnsServiceImpl(ApnsConnection connection, ApnsFeedbackConnection feedback) {
+    public ApnsServiceImpl(ApnsConnection connection,
+            ApnsFeedbackConnection feedback) {
         super(feedback);
         this.connection = connection;
     }
 
     @Override
     public void push(ApnsNotification msg) throws NetworkIOException {
-        connection.sendMessage(msg);
+        if (!closed.get()) {
+            connection.sendMessage(msg);
+        } else {
+            throw new ApnsServiceClosedException(Utilities.encodeHex(msg
+                    .getDeviceToken()));
+        }
     }
 
     public void start() {
     }
 
     public void stop() {
-        Utilities.close(connection);
+        if (!closed.getAndSet(true)) {
+            Utilities.close(connection);
+        }
     }
 
     public void testConnection() {
