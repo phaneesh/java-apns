@@ -31,6 +31,8 @@
 package com.notnoop.apns.internal;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.notnoop.apns.ApnsNotification;
 import com.notnoop.exceptions.ApnsServiceClosedException;
@@ -38,6 +40,7 @@ import com.notnoop.exceptions.NetworkIOException;
 
 public class ApnsServiceImpl extends AbstractApnsService {
     private AtomicBoolean closed = new AtomicBoolean(false);
+    private ReadWriteLock rwlock = new ReentrantReadWriteLock();
     private ApnsConnection connection;
 
     public ApnsServiceImpl(ApnsConnection connection,
@@ -48,11 +51,16 @@ public class ApnsServiceImpl extends AbstractApnsService {
 
     @Override
     public void push(ApnsNotification msg) throws NetworkIOException {
-        if (!closed.get()) {
-            connection.sendMessage(msg);
-        } else {
-            throw new ApnsServiceClosedException(Utilities.encodeHex(msg
-                    .getDeviceToken()));
+        rwlock.readLock().lock();
+        try {
+            if (!closed.get()) {
+                connection.sendMessage(msg);
+            } else {
+                throw new ApnsServiceClosedException(Utilities.encodeHex(msg
+                        .getDeviceToken()));
+            }
+        } finally {
+            rwlock.readLock().unlock();
         }
     }
 
@@ -61,7 +69,12 @@ public class ApnsServiceImpl extends AbstractApnsService {
 
     public void stop() {
         if (!closed.getAndSet(true)) {
-            Utilities.close(connection);
+            rwlock.writeLock().lock();
+            try {
+                Utilities.close(connection);
+            } finally {
+                rwlock.writeLock().unlock();
+            }
         }
     }
 
