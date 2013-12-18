@@ -36,6 +36,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.notnoop.apns.ApnsNotification;
 import com.notnoop.exceptions.ApnsServiceClosedException;
+import com.notnoop.exceptions.ChannelProviderClosedException;
 import com.notnoop.exceptions.NetworkIOException;
 
 public class ApnsServiceImpl extends AbstractApnsService {
@@ -59,6 +60,10 @@ public class ApnsServiceImpl extends AbstractApnsService {
                 throw new ApnsServiceClosedException(Utilities.encodeHex(msg
                         .getDeviceToken()));
             }
+        } catch(ChannelProviderClosedException e) {
+            // Unlikely to happen
+            throw new ApnsServiceClosedException(Utilities.encodeHex(msg
+                    .getDeviceToken()));
         } finally {
             rwlock.readLock().unlock();
         }

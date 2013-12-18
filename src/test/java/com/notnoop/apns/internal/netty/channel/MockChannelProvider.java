@@ -27,7 +27,7 @@ public class MockChannelProvider extends AbstractChannelProvider {
         return currentChannel;
     }
 
-    public void close(Channel channel) {
+    public void closeChannel(Channel channel) {
         if (currentChannel == channel) {
             currentChannel = null;
         }

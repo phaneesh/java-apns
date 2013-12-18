@@ -13,12 +13,14 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.ssl.SslHandler;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
 import com.notnoop.apns.ReconnectPolicy;
+import com.notnoop.exceptions.ChannelProviderClosedException;
 
 // TODO test
 public class NettyChannelProviderImpl extends AbstractChannelProvider {
@@ -30,6 +32,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
 
     private final int port;
     private final AtomicReference<ChannelFuture> channelFutureReference = new AtomicReference<>();
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public NettyChannelProviderImpl(EventLoopGroup eventLoopGroup,
             ReconnectPolicy reconnectPolicy, String host, int port,
@@ -50,11 +53,15 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
 
     // @Override
     public Channel getChannel() {
+        if (closed.get()) {
+            throw new ChannelProviderClosedException();
+        }
+        
         ChannelFuture channelFuture = channelFutureReference.get();
 
         if (reconnectPolicy.shouldReconnect() && channelFuture != null) {
             try {
-                close();
+                closeCurrentChannel();
             } catch (Throwable t) {
                 LOGGER.error("Error while closing connection", t);
             }
@@ -74,6 +81,12 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
 
     @Override
     public void close() throws IOException {
+        LOGGER.info("Closing channel provider...");
+        closed.getAndSet(true);
+        closeCurrentChannel();
+    }
+    
+    private void closeCurrentChannel() {
         final ChannelFuture channelFuture = channelFutureReference
                 .getAndSet(null);
         Channel channel = null;
@@ -85,7 +98,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
     }
 
     @Override
-    public void close(Channel channel) throws IOException {
+    public void closeChannel(Channel channel) throws IOException {
         final ChannelFuture channelFuture = channelFutureReference.get();
         if (channelFuture != null && channelFuture.channel() == channel) {
             channelFutureReference.set(null);

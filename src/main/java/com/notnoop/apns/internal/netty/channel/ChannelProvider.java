@@ -34,7 +34,7 @@ public interface ChannelProvider {
      * @param channel
      * @return
      */
-    void close(Channel channel) throws IOException;
+    void closeChannel(Channel channel) throws IOException;
 
     void runWithChannel(WithChannelAction action) throws Exception;
 

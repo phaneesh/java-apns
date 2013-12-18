@@ -35,6 +35,7 @@ import com.notnoop.apns.internal.netty.channel.ChannelProvider.ChannelHandlersPr
 import com.notnoop.apns.internal.netty.channel.ChannelProvider.WithChannelAction;
 import com.notnoop.apns.internal.netty.encoding.ApnsResultDecoder;
 import com.notnoop.exceptions.ApnsDeliveryErrorException;
+import com.notnoop.exceptions.ChannelProviderClosedException;
 import com.notnoop.exceptions.NetworkIOException;
 
 public class NettyApnsConnectionImpl implements ApnsConnection,
@@ -108,7 +109,16 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     @Override
     public synchronized void close() throws IOException {
         LOGGER.debug("Closing netty APNS connection");
-
+        
+        LOGGER.debug("Shutdown of single-thread executor service for drain buffer...");
+        drainBufferExecutorService.shutdown();
+        try {
+            LOGGER.debug("Waiting termination of single-thread executor service for drain buffer...");
+            drainBufferExecutorService.awaitTermination(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            LOGGER.error("Termination did not complete in 30 seconds");
+        }
+        
         LOGGER.debug("Shutdown of single-thread executor service for handling delivery results...");
         deliveryResultExecutorService.shutdown();
         try {
@@ -119,16 +129,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
             LOGGER.error("Termination did not complete in 30 seconds");
         }
 
-        LOGGER.debug("Shutdown of single-thread executor service for drain buffer...");
-        drainBufferExecutorService.shutdown();
-        try {
-            LOGGER.debug("Waiting termination of single-thread executor service for drain buffer...");
-            drainBufferExecutorService.awaitTermination(30, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            LOGGER.error("Termination did not complete in 30 seconds");
-        }
-
-        LOGGER.debug("Close of channel...");
+        LOGGER.debug("Close of channel provider...");
         channelProvider.close();
     }
 
@@ -170,6 +171,11 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                     });
                 }
                 break;
+            } catch (ChannelProviderClosedException e) {
+                LOGGER.info(
+                        "Failed to send message {} (fromBuffer={}, attempts={}: {})",
+                        m, fromBuffer, attempts, e.getMessage());
+                throw e;
             } catch (Exception e) {
                 if (attempts > RETRIES) {
                     delegate.messageSendFailed(m, e);
@@ -274,7 +280,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
                         // The current connection is closed or is to be closed,
                         // so we enforce to use a new one for next notifications
                         try {
-                            channelProvider.close(ctx.channel());
+                            channelProvider.closeChannel(ctx.channel());
                         } catch (IOException e) {
                             LOGGER.error(
                                     "Could not close connection: "
