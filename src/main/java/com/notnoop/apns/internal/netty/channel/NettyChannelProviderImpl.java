@@ -14,8 +14,6 @@ import io.netty.handler.ssl.SslHandler;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -31,9 +29,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
     private final String host;
 
     private final int port;
-    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final AtomicReference<ChannelFuture> channelFutureReference = new AtomicReference<>();
-    private final EventLoopGroup eventLoopGroup;
 
     public NettyChannelProviderImpl(EventLoopGroup eventLoopGroup,
             ReconnectPolicy reconnectPolicy, String host, int port,
@@ -42,7 +38,6 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
         this.host = host;
         this.port = port;
         this.sslContext = sslContext;
-        this.eventLoopGroup = eventLoopGroup;
         bootstrap = new Bootstrap();
         bootstrap.group(eventLoopGroup);
         bootstrap.channel(NioSocketChannel.class);
@@ -56,8 +51,7 @@ public class NettyChannelProviderImpl extends AbstractChannelProvider {
     // @Override
     public Channel getChannel() {
         ChannelFuture channelFuture = channelFutureReference.get();
-        // Start the client.
-        // channelFuture = bootstrap.connect(host, port).sync().ch
+
         if (reconnectPolicy.shouldReconnect() && channelFuture != null) {
             try {
                 close();

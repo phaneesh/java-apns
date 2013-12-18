@@ -108,7 +108,6 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     @Override
     public synchronized void close() throws IOException {
         LOGGER.debug("Closing netty APNS connection");
-        LOGGER.debug("Issuing drainBuffer request...");
 
         LOGGER.debug("Shutdown of single-thread executor service for handling delivery results...");
         deliveryResultExecutorService.shutdown();
