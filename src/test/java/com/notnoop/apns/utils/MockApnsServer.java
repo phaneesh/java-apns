@@ -10,8 +10,11 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -41,11 +44,13 @@ public class MockApnsServer {
     private final AtomicInteger currentNotificationList = new AtomicInteger(-1);
     private final List<List<ApnsNotification>> receivedNotifications = new CopyOnWriteArrayList<>();
     private final Vector<CountDownLatch> countdownLatches;
-    private final ExecutorService executor = Executors.newFixedThreadPool(10);
+    private final ExecutorService executor = Executors.newCachedThreadPool();
 
     private SSLServerSocket serverSocket;
     private SSLContext sslContext;
     private Map<Integer, DeliveryResult> fails = new HashMap<Integer, DeliveryResult>();
+    private Set<Integer> idsToFail = new HashSet<Integer>();
+    private Integer failWhenReceive = null;
 
     public static final int MAX_PAYLOAD_SIZE = 256;
 
@@ -133,29 +138,39 @@ public class MockApnsServer {
     public synchronized void fail(final DeliveryError errorCode,
             final int idToFail, final int failWhenReceive) {
         fails.put(failWhenReceive, new DeliveryResult(errorCode, idToFail));
+        idsToFail.add(idToFail);
     }
 
     protected DeliveryResult handleReceivedNotification(
             final ApnsNotification receivedNotification) {
         synchronized (this) {
-            boolean resent = false;
-            for (List<Integer> ids : getReceivedNotificationIds()) {
-                if (ids.contains(receivedNotification.getIdentifier())) {
-                    resent = true;
-                    break;
+            boolean countdown = failWhenReceive == null;
+
+            if (idsToFail.contains(receivedNotification.getIdentifier())
+                    && failWhenReceive == null) {
+                for (Entry<Integer, DeliveryResult> entry : fails.entrySet()) {
+                    if (entry.getValue().getId() == receivedNotification
+                            .getIdentifier()) {
+                        failWhenReceive = entry.getKey();
+                        break;
+                    }
                 }
             }
 
             addReceivedNotification(receivedNotification);
 
             final DeliveryResult result;
-            if (fails.containsKey(receivedNotification.getIdentifier())) {
+            if (fails.containsKey(receivedNotification.getIdentifier())
+                    && (failWhenReceive == null || failWhenReceive == receivedNotification
+                            .getIdentifier())) {
                 result = fails.remove(receivedNotification.getIdentifier());
+                idsToFail.remove(result.getId());
+                failWhenReceive = null;
                 LOGGER.debug("Causing failure...");
             } else
                 result = null;
 
-            if (!resent) {
+            if (countdown) {
                 LOGGER.trace("Notification causing countdown "
                         + receivedNotification);
                 for (final CountDownLatch latch : this.countdownLatches) {
@@ -360,7 +375,7 @@ public class MockApnsServer {
             response.write(notificationId);
 
             outputStream.write(response.toByteArray());
-            
+
             LOGGER.trace("Closing connection...");
             outputStream.close();
         }
