@@ -35,13 +35,17 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.notnoop.apns.ApnsNotification;
-import com.notnoop.exceptions.ApnsServiceClosedException;
+import com.notnoop.exceptions.ApnsServiceStoppedException;
 import com.notnoop.exceptions.ChannelProviderClosedException;
 import com.notnoop.exceptions.NetworkIOException;
 
 public class ApnsServiceImpl extends AbstractApnsService {
-    private AtomicBoolean closed = new AtomicBoolean(false);
+
+    // These two properties are used to control no more push messages are sent
+    // to the connection once the service has been stopped
+    private AtomicBoolean stopped = new AtomicBoolean(false);
     private ReadWriteLock rwlock = new ReentrantReadWriteLock();
+
     private ApnsConnection connection;
 
     public ApnsServiceImpl(ApnsConnection connection,
@@ -54,15 +58,15 @@ public class ApnsServiceImpl extends AbstractApnsService {
     public void push(ApnsNotification msg) throws NetworkIOException {
         rwlock.readLock().lock();
         try {
-            if (!closed.get()) {
+            if (!stopped.get()) {
                 connection.sendMessage(msg);
             } else {
-                throw new ApnsServiceClosedException(Utilities.encodeHex(msg
+                throw new ApnsServiceStoppedException(Utilities.encodeHex(msg
                         .getDeviceToken()));
             }
-        } catch(ChannelProviderClosedException e) {
+        } catch (ChannelProviderClosedException e) {
             // Unlikely to happen
-            throw new ApnsServiceClosedException(Utilities.encodeHex(msg
+            throw new ApnsServiceStoppedException(Utilities.encodeHex(msg
                     .getDeviceToken()));
         } finally {
             rwlock.readLock().unlock();
@@ -73,7 +77,7 @@ public class ApnsServiceImpl extends AbstractApnsService {
     }
 
     public void stop() {
-        if (!closed.getAndSet(true)) {
+        if (!stopped.getAndSet(true)) {
             rwlock.writeLock().lock();
             try {
                 Utilities.close(connection);

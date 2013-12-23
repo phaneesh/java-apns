@@ -8,13 +8,13 @@ package com.notnoop.exceptions;
  * @author Jorge
  * 
  */
-public class ApnsServiceClosedException extends ApnsException {
+public class ApnsServiceStoppedException extends ApnsException {
 
     private static final long serialVersionUID = 1L;
 
     private final String failedDeviceToken;
 
-    public ApnsServiceClosedException(String failedDeviceToken) {
+    public ApnsServiceStoppedException(String failedDeviceToken) {
         this.failedDeviceToken = failedDeviceToken;
     }
 
