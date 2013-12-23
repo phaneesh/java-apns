@@ -37,7 +37,7 @@ public class NettyApnsConnectionImplTest {
 
         NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(
                 channelProvider, mock(ApnsDelegate.class), new CacheStoreImpl(
-                        200, true));
+                        200, true), null);
         conn.init();
 
         for (int i = 0; i < N; i++) {
@@ -80,7 +80,7 @@ public class NettyApnsConnectionImplTest {
         provider.init();
 
         NettyApnsConnectionImpl conn = new NettyApnsConnectionImpl(provider,
-                new ApnsDelegateAdapter(), new CacheStoreImpl(200, true));
+                new ApnsDelegateAdapter(), new CacheStoreImpl(200, true), null);
         conn = spy(conn);
 
         conn.init();

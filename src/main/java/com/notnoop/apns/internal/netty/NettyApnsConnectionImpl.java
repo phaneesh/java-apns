@@ -14,9 +14,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -50,10 +51,9 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     private final ChannelProvider channelProvider;
     private final CacheStore cacheStore;
 
-    private final ExecutorService drainBufferExecutorService = Executors
-            .newSingleThreadExecutor();
-    private final ExecutorService deliveryResultExecutorService = Executors
-            .newSingleThreadExecutor();
+    private final ExecutorService drainBufferExecutorService;
+    private final ExecutorService deliveryResultExecutorService;
+    private final boolean deliveryResultExecutorServiceProvided;
 
     private final Object lockSendMessage = new Object();
 
@@ -71,10 +71,29 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     private final Semaphore accessCacheStoreSemaphore = new Semaphore(1, true);
 
     public NettyApnsConnectionImpl(ChannelProvider channelProvider,
-            ApnsDelegate delegate, CacheStore cacheStore) {
+            ApnsDelegate delegate, CacheStore cacheStore,
+            ExecutorService deliveryResultExecutorService) {
         this.delegate = delegate;
         this.channelProvider = channelProvider;
         this.cacheStore = cacheStore;
+
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 30,
+                TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+        executor.allowCoreThreadTimeOut(true);
+
+        drainBufferExecutorService = executor;
+
+        if (deliveryResultExecutorService != null) {
+            this.deliveryResultExecutorService = deliveryResultExecutorService;
+            deliveryResultExecutorServiceProvided = true;
+        } else {
+            executor = new ThreadPoolExecutor(1, 1, 30, TimeUnit.SECONDS,
+                    new LinkedBlockingQueue<Runnable>());
+            executor.allowCoreThreadTimeOut(true);
+
+            this.deliveryResultExecutorService = executor;
+            deliveryResultExecutorServiceProvided = false;
+        }
     }
 
     @Override
@@ -109,7 +128,7 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
     @Override
     public synchronized void close() throws IOException {
         LOGGER.debug("Closing netty APNS connection");
-        
+
         LOGGER.debug("Shutdown of single-thread executor service for drain buffer...");
         drainBufferExecutorService.shutdown();
         try {
@@ -118,15 +137,17 @@ public class NettyApnsConnectionImpl implements ApnsConnection,
         } catch (InterruptedException e) {
             LOGGER.error("Termination did not complete in 30 seconds");
         }
-        
-        LOGGER.debug("Shutdown of single-thread executor service for handling delivery results...");
-        deliveryResultExecutorService.shutdown();
-        try {
-            LOGGER.debug("Waiting termination of single-thread executor service for handling delivery results...");
-            deliveryResultExecutorService
-                    .awaitTermination(30, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            LOGGER.error("Termination did not complete in 30 seconds");
+
+        if (!deliveryResultExecutorServiceProvided) {
+            LOGGER.debug("Shutdown of single-thread executor service for handling delivery results...");
+            deliveryResultExecutorService.shutdown();
+            try {
+                LOGGER.debug("Waiting termination of single-thread executor service for handling delivery results...");
+                deliveryResultExecutorService.awaitTermination(30,
+                        TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                LOGGER.error("Termination did not complete in 30 seconds");
+            }
         }
 
         LOGGER.debug("Close of channel provider...");

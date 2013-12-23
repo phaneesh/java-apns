@@ -110,6 +110,7 @@ public class ApnsServiceBuilder {
     private boolean errorDetection = true;
     private boolean netty = true;
     private EventLoopGroup nettyEventLoopGroup;
+    private ExecutorService nettyDeliveryResultExecutor = null;
 
     /**
      * Constructs a new instance of {@code ApnsServiceBuilder}
@@ -273,6 +274,19 @@ public class ApnsServiceBuilder {
     public ApnsServiceBuilder withNettyEventLoopGroup(
             EventLoopGroup nettyEventLoopGroup) {
         this.nettyEventLoopGroup = nettyEventLoopGroup;
+        return this;
+    }
+
+    /**
+     * Provide optionally a given executor service to handle the responses from
+     * the APNS server, using netty-based backend
+     * 
+     * @param nettyDeliveryResultExecutor
+     * @return
+     */
+    public ApnsServiceBuilder withNettyDeliveryResultExecutor(
+            ExecutorService nettyDeliveryResultExecutor) {
+        this.nettyDeliveryResultExecutor = nettyDeliveryResultExecutor;
         return this;
     }
 
@@ -641,7 +655,7 @@ public class ApnsServiceBuilder {
                                     : nettyEventLoopGroup, reconnectPolicy,
                             gatewayHost, gatewaPort, readTimeout, sslContext),
                     delegate, new CacheStoreImpl(cacheLength,
-                            autoAdjustCacheLength));
+                            autoAdjustCacheLength), nettyDeliveryResultExecutor);
             conn.init();
             return conn;
 
